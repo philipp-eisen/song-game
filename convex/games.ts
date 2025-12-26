@@ -586,6 +586,7 @@ export const get = query({
     v.object({
       _id: v.id('games'),
       hostUserId: v.string(),
+      isCurrentUserHost: v.boolean(),
       joinCode: v.string(),
       mode: gameModeValidator,
       playlistId: v.id('spotifyPlaylists'),
@@ -727,6 +728,7 @@ export const get = query({
     return {
       _id: game._id,
       hostUserId: game.hostUserId,
+      isCurrentUserHost: isHost,
       joinCode: game.joinCode,
       mode: game.mode,
       playlistId: game.playlistId,
