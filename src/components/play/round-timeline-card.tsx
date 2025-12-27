@@ -1,4 +1,8 @@
-import { CheckCircle, SealQuestion, XCircle } from '@phosphor-icons/react'
+import {
+  CheckCircleIcon,
+  SealQuestionIcon,
+  XCircleIcon,
+} from '@phosphor-icons/react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
@@ -112,7 +116,10 @@ function MysteryCardFace() {
       className="flex h-full w-full items-center justify-center bg-gradient-to-br from-violet-600 to-purple-800 p-2"
     >
       <CardContent className="flex flex-col items-center justify-center gap-2 p-0">
-        <SealQuestion className="h-16 w-16 text-white/90" weight="duotone" />
+        <SealQuestionIcon
+          className="h-16 w-16 text-white/90"
+          weight="duotone"
+        />
         <span className="text-xs font-medium text-white/80">Mystery Card</span>
       </CardContent>
     </Card>
@@ -187,9 +194,9 @@ function RevealedCardFace({
           transition={{ delay: 0.3, duration: 0.3, ease: 'backOut' }}
         >
           {isCorrect ? (
-            <CheckCircle className="h-5 w-5 text-white" weight="fill" />
+            <CheckCircleIcon className="h-5 w-5 text-white" weight="fill" />
           ) : (
-            <XCircle className="h-5 w-5 text-white" weight="fill" />
+            <XCircleIcon className="h-5 w-5 text-white" weight="fill" />
           )}
         </motion.div>
       )}
@@ -208,10 +215,12 @@ export function DraggableMysteryCard({ className }: { className?: string }) {
       )}
     >
       <CardContent className="flex flex-col items-center justify-center gap-2 p-0">
-        <SealQuestion className="h-16 w-16 text-white/90" weight="duotone" />
+        <SealQuestionIcon
+          className="h-16 w-16 text-white/90"
+          weight="duotone"
+        />
         <span className="text-xs font-medium text-white/80">Drag to place</span>
       </CardContent>
     </Card>
   )
 }
-
