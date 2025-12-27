@@ -3,7 +3,6 @@ import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { api } from '../../../convex/_generated/api'
 import { TurnControls } from './turn-controls'
-import { ActiveTimelineDropzone } from './active-timeline-dropzone'
 import { TimelineView } from './timeline-view'
 import type { GameData } from './types'
 import {
@@ -38,7 +37,7 @@ export function GameControlsBar({ game }: GameControlsBarProps) {
   const shouldShowDropzone =
     isActivePlayer &&
     (game.phase === 'awaitingPlacement' || game.phase === 'awaitingReveal') &&
-    activePlayer
+    !!activePlayer
 
   // Find the active player's timeline from the already-loaded timelines
   const activePlayerTimeline = timelines?.find(
@@ -93,13 +92,16 @@ export function GameControlsBar({ game }: GameControlsBarProps) {
           </div>
 
           {/* Active player's timeline - always visible */}
-          {shouldShowDropzone && activePlayerTimeline ? (
+          {activePlayerTimeline && (
             <div className="space-y-2">
-              <ActiveTimelineDropzone
+              <TimelineView
                 timeline={activePlayerTimeline}
+                game={game}
+                isActivePlayer={true}
+                currentCard={currentCard}
+                editable={shouldShowDropzone}
                 onPlaceCard={handlePlaceCard}
-                disabled={isPlacing}
-                currentPlacementIndex={game.currentRound?.placementIndex}
+                dragDisabled={isPlacing}
               />
               {placementError && (
                 <p className="text-center text-sm text-red-500">
@@ -107,15 +109,6 @@ export function GameControlsBar({ game }: GameControlsBarProps) {
                 </p>
               )}
             </div>
-          ) : (
-            activePlayerTimeline && (
-              <TimelineView
-                timeline={activePlayerTimeline}
-                game={game}
-                isActivePlayer={true}
-                currentCard={currentCard}
-              />
-            )
           )}
 
           {activePlayer && (
