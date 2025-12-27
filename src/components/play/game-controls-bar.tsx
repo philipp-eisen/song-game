@@ -62,7 +62,7 @@ export function GameControlsBar({ game }: GameControlsBarProps) {
   }
 
   return (
-    <div className="sticky bottom-0 z-40 -mx-4 border-t bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/80">
+    <div className="shrink-0 rounded-lg border bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/80">
       <div className="space-y-3 p-4">
         {/* Spotify Player - Always rendered */}
         <SpotifyPlayer
