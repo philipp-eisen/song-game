@@ -21,6 +21,7 @@
     "@convex-dev/react-query": "^0.0.0-alpha.11",
     "@fontsource-variable/nunito-sans": "^5.2.7",
     "@phosphor-icons/react": "^2.1.10",
+    "@spotify/web-api-ts-sdk": "^1.2.0",
     "@tailwindcss/vite": "^4.0.6",
     "@tanstack/react-devtools": "^0.7.0",
     "@tanstack/react-form": "^1.27.4",

@@ -1,5 +1,6 @@
-import { House, MusicNotes, Gear } from '@phosphor-icons/react'
+import { Gear, House, MusicNotes } from '@phosphor-icons/react'
 import { Link } from '@tanstack/react-router'
+import type { Icon } from '@phosphor-icons/react'
 import {
   Sidebar,
   SidebarContent,
@@ -13,9 +14,8 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from '@/components/ui/sidebar'
-import type { Icon } from '@phosphor-icons/react'
 
-const menuItems: { title: string; url: string; icon: Icon }[] = [
+const menuItems: Array<{ title: string; url: string; icon: Icon }> = [
   {
     title: 'Home',
     url: '/',
@@ -44,7 +44,7 @@ export function AppSidebar() {
               render={<Link to="/" />}
             >
               <div className="bg-primary text-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
-                <MusicNotes className="size-4" />
+                <MusicNotes weight="duotone" className="size-4" />
               </div>
               <div className="flex flex-col gap-0.5 leading-none">
                 <span className="font-semibold">Song Game</span>
@@ -65,7 +65,7 @@ export function AppSidebar() {
               {menuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton render={<Link to={item.url} />}>
-                    <item.icon />
+                    <item.icon weight="duotone" />
                     <span>{item.title}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>

@@ -9,7 +9,13 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as games from "../games.js";
 import type * as http from "../http.js";
+import type * as playlists from "../playlists.js";
+import type * as spotify from "../spotify.js";
+import type * as spotifyInternal from "../spotifyInternal.js";
+import type * as timelines from "../timelines.js";
+import type * as turns from "../turns.js";
 
 import type {
   ApiFromModules,
@@ -19,7 +25,13 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  games: typeof games;
   http: typeof http;
+  playlists: typeof playlists;
+  spotify: typeof spotify;
+  spotifyInternal: typeof spotifyInternal;
+  timelines: typeof timelines;
+  turns: typeof turns;
 }>;
 
 /**
