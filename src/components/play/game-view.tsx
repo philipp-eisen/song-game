@@ -5,7 +5,6 @@ import {
   getAllTimelinesQuery,
   getCurrentRoundCardQuery,
 } from '@/lib/convex-queries'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 interface GameViewProps {
   game: GameData
@@ -21,35 +20,6 @@ export function GameView({ game }: GameViewProps) {
 
   return (
     <div className="space-y-4">
-      {/* Current Round Card (after reveal) */}
-      {currentCard && game.phase === 'revealed' && (
-        <Card className="border-2 border-primary">
-          <CardHeader>
-            <CardTitle>Current Card</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-4">
-              {currentCard.albumImageUrl && (
-                <img
-                  src={currentCard.albumImageUrl}
-                  alt=""
-                  className="h-20 w-20 rounded object-cover"
-                />
-              )}
-              <div>
-                <p className="text-xl font-bold">{currentCard.title}</p>
-                <p className="text-muted-foreground">
-                  {currentCard.artistNames.join(', ')}
-                </p>
-                <p className="text-2xl font-bold text-primary">
-                  {currentCard.releaseYear}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Timelines */}
       {timelines && (
         <div className="space-y-4">
@@ -60,6 +30,7 @@ export function GameView({ game }: GameViewProps) {
               timeline={timeline}
               game={game}
               isActivePlayer={timeline.playerId === activePlayer?._id}
+              currentCard={currentCard}
             />
           ))}
         </div>
