@@ -8,6 +8,26 @@ import type { AccessToken, PlaylistedTrack } from '@spotify/web-api-ts-sdk'
 import type { Id } from './_generated/dataModel'
 
 // ===========================================
+// Constants
+// ===========================================
+
+/**
+ * Refresh tokens this many milliseconds before they expire.
+ * This prevents handing clients tokens that are about to expire.
+ * 5 minutes = 300,000 ms
+ */
+const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000
+
+/**
+ * Check if a token needs refreshing (expired or expiring soon)
+ */
+function tokenNeedsRefresh(expiresAt: number | null | undefined): boolean {
+  if (!expiresAt) return true
+  const now = Date.now()
+  return expiresAt < now + TOKEN_REFRESH_BUFFER_MS
+}
+
+// ===========================================
 // Helper functions
 // ===========================================
 
@@ -172,12 +192,12 @@ export const getAccessToken = action({
     let accessToken = account.accessToken
     let expiresAt = account.accessTokenExpiresAt ?? 0
 
-    // Check if token is expired and refresh if needed
-    const now = Date.now()
-    if (expiresAt < now) {
-      console.log('Spotify token expired, refreshing...')
+    // Check if token is expired or expiring soon and refresh if needed
+    if (tokenNeedsRefresh(expiresAt)) {
+      console.log('Spotify token expired or expiring soon, refreshing...')
       const newTokens = await refreshSpotifyToken(account.refreshToken)
 
+      const now = Date.now()
       accessToken = newTokens.access_token
       expiresAt = now + newTokens.expires_in * 1000
 
@@ -232,12 +252,12 @@ export const importSpotifyPlaylist = action({
 
     let accessToken = account.accessToken
 
-    // Check if token is expired and refresh if needed
-    const now = Date.now()
-    if (account.accessTokenExpiresAt && account.accessTokenExpiresAt < now) {
-      console.log('Spotify token expired, refreshing...')
+    // Check if token is expired or expiring soon and refresh if needed
+    if (tokenNeedsRefresh(account.accessTokenExpiresAt)) {
+      console.log('Spotify token expired or expiring soon, refreshing...')
       const newTokens = await refreshSpotifyToken(account.refreshToken)
 
+      const now = Date.now()
       accessToken = newTokens.access_token
       const expiresAt = now + newTokens.expires_in * 1000
 
