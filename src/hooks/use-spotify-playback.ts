@@ -48,6 +48,12 @@ export type SpotifyPlaybackError = {
 
 let spotifySdkLoadPromise: Promise<void> | null = null
 
+/**
+ * Buffer time before token expiry to trigger refresh (5 minutes in ms)
+ * Should match or be slightly larger than server-side TOKEN_REFRESH_BUFFER_MS
+ */
+const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000
+
 async function loadSpotifyWebPlaybackSDK(options?: {
   timeoutMs?: number
 }): Promise<void> {
@@ -127,10 +133,14 @@ export function useSpotifyPlayback({
   const playerRef = useRef<SpotifyPlayer | null>(null)
   const deviceIdRef = useRef<string | null>(null)
   const accessTokenRef = useRef<string | null>(null)
+  const expiresAtRef = useRef<number>(0)
   const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
     null,
   )
   const audioRef = useRef<HTMLAudioElement | null>(null)
+
+  // Track in-flight token refresh to avoid duplicate requests
+  const refreshingTokenRef = useRef<Promise<string | null> | null>(null)
 
   const spotifyUrl = useMemo(() => spotifyUriToUrl(spotifyUri), [spotifyUri])
 
@@ -185,6 +195,59 @@ export function useSpotifyPlayback({
     setDurationMs(0)
   }, [cleanupSdkPlayer])
 
+  /**
+   * Ensures we have a fresh access token, refreshing if needed.
+   * Returns null if unable to get a valid token (triggers needsReauth).
+   */
+  const ensureFreshAccessToken = useCallback(async (): Promise<string | null> => {
+    const now = Date.now()
+    const currentToken = accessTokenRef.current
+    const expiresAt = expiresAtRef.current
+
+    // If current token is still valid (not expiring soon), return it
+    if (currentToken && expiresAt > now + TOKEN_REFRESH_BUFFER_MS) {
+      return currentToken
+    }
+
+    // If already refreshing, wait for that to complete
+    if (refreshingTokenRef.current) {
+      return refreshingTokenRef.current
+    }
+
+    // Need to refresh - call server to get fresh token
+    console.log('[Spotify] Token expired or expiring soon, fetching fresh token...')
+
+    const refreshPromise = (async () => {
+      try {
+        const tokenData = await getAccessToken()
+        if (!tokenData) {
+          console.error('[Spotify] Failed to get access token - not logged in')
+          setError({ message: 'Not logged in with Spotify', needsReauth: true })
+          setStatus('error')
+          return null
+        }
+
+        accessTokenRef.current = tokenData.accessToken
+        expiresAtRef.current = tokenData.expiresAt
+        console.log('[Spotify] Token refreshed, expires at:', new Date(tokenData.expiresAt).toISOString())
+        return tokenData.accessToken
+      } catch (err) {
+        console.error('[Spotify] Token refresh error:', err)
+        setError({
+          message: 'Failed to refresh Spotify token. Please sign in again.',
+          needsReauth: true,
+        })
+        setStatus('error')
+        return null
+      } finally {
+        refreshingTokenRef.current = null
+      }
+    })()
+
+    refreshingTokenRef.current = refreshPromise
+    return refreshPromise
+  }, [getAccessToken])
+
   // Initialize Spotify SDK player on mount (no need to re-init per track/preview change)
   useEffect(() => {
     const cancelledRef = { current: false }
@@ -208,6 +271,7 @@ export function useSpotifyPlayback({
         }
 
         accessTokenRef.current = tokenData.accessToken
+        expiresAtRef.current = tokenData.expiresAt
 
         await loadSpotifyWebPlaybackSDK()
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- cancelledRef can flip during awaits via effect cleanup
@@ -221,8 +285,10 @@ export function useSpotifyPlayback({
 
         const player = new window.Spotify.Player({
           name: 'Song Game Player',
-          getOAuthToken: (cb: (token: string) => void) => {
-            cb(accessTokenRef.current ?? '')
+          getOAuthToken: async (cb: (token: string) => void) => {
+            // Spotify SDK calls this when it needs a token - ensure we provide a fresh one
+            const token = await ensureFreshAccessToken()
+            cb(token ?? '')
           },
           volume: 0.5,
         })
@@ -337,7 +403,7 @@ export function useSpotifyPlayback({
       cancelledRef.current = true
       cleanupAll()
     }
-  }, [cleanupAll, getAccessToken, switchToPreview])
+  }, [cleanupAll, ensureFreshAccessToken, getAccessToken, switchToPreview])
 
   // Set up preview audio player when in fallback mode
   useEffect(() => {
@@ -411,10 +477,9 @@ export function useSpotifyPlayback({
     setDurationMs(0)
 
     const deviceId = deviceIdRef.current
-    const token = accessTokenRef.current
 
-    if (!deviceId || !token) {
-      console.log('[Spotify] Cannot auto-play: device or token not ready')
+    if (!deviceId) {
+      console.log('[Spotify] Cannot auto-play: device not ready')
       return
     }
 
@@ -422,6 +487,13 @@ export function useSpotifyPlayback({
 
     // Auto-play the new track
     const playNewTrack = async () => {
+      // Get fresh token before making API call
+      const token = await ensureFreshAccessToken()
+      if (!token) {
+        console.error('[Spotify] Cannot auto-play: failed to get access token')
+        return
+      }
+
       try {
         const playRes = await fetch(
           `https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`,
@@ -446,7 +518,7 @@ export function useSpotifyPlayback({
     }
 
     playNewTrack()
-  }, [spotifyUri, usingFallback, status])
+  }, [ensureFreshAccessToken, spotifyUri, usingFallback, status])
 
   // Track previous preview URL for fallback mode
   const prevPreviewUrlRef = useRef<string | undefined>(undefined)
@@ -475,11 +547,17 @@ export function useSpotifyPlayback({
 
   const playSdkTrack = useCallback(async () => {
     const deviceId = deviceIdRef.current
-    const token = accessTokenRef.current
     const uri = spotifyUriRef.current
 
-    if (!deviceId || !token || !uri) {
-      console.error('[Spotify] Cannot play: missing device, token, or URI')
+    if (!deviceId || !uri) {
+      console.error('[Spotify] Cannot play: missing device or URI')
+      return
+    }
+
+    // Get fresh token before making API calls
+    const token = await ensureFreshAccessToken()
+    if (!token) {
+      console.error('[Spotify] Cannot play: failed to get access token')
       return
     }
 
@@ -544,7 +622,7 @@ export function useSpotifyPlayback({
       setStatus('error')
       setIsPlaying(false)
     }
-  }, [])
+  }, [ensureFreshAccessToken])
 
   const togglePlayPause = useCallback(async () => {
     if (usingFallback) {
