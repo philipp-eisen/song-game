@@ -2,6 +2,7 @@ import {
   DndContext,
   DragOverlay,
   MouseSensor,
+  PointerSensor,
   TouchSensor,
   useDraggable,
   useDroppable,
@@ -9,6 +10,7 @@ import {
   useSensors,
 } from '@dnd-kit/core'
 import { useState } from 'react'
+import type { Modifier } from '@dnd-kit/core'
 import { GameCard } from './game-card'
 import { DraggableMysteryCard } from './round-timeline-card'
 import type { DragEndEvent } from '@dnd-kit/core'
@@ -16,6 +18,41 @@ import type { TimelineData } from './types'
 import { cn } from '@/lib/utils'
 
 const MYSTERY_CARD_ID = 'mystery-card'
+
+// Custom modifier to snap the drag overlay so the cursor is at the center of the card
+const snapCenterToCursor: Modifier = ({
+  transform,
+  activatorEvent,
+  draggingNodeRect,
+}) => {
+  if (!draggingNodeRect || !activatorEvent) {
+    return transform
+  }
+
+  const activatorCoordinates =
+    activatorEvent instanceof MouseEvent ||
+    activatorEvent instanceof PointerEvent
+      ? { x: activatorEvent.clientX, y: activatorEvent.clientY }
+      : null
+
+  if (!activatorCoordinates) {
+    return transform
+  }
+
+  // Calculate the offset from where the user clicked to the center of the card
+  const offsetX =
+    activatorCoordinates.x -
+    (draggingNodeRect.left + draggingNodeRect.width / 2)
+  const offsetY =
+    activatorCoordinates.y -
+    (draggingNodeRect.top + draggingNodeRect.height / 2)
+
+  return {
+    ...transform,
+    x: transform.x + offsetX,
+    y: transform.y + offsetY,
+  }
+}
 
 interface ActiveTimelineDropzoneProps {
   timeline: TimelineData
@@ -28,25 +65,30 @@ export function ActiveTimelineDropzone({
   onPlaceCard,
   disabled,
 }: ActiveTimelineDropzoneProps) {
-  const [isDragging, setIsDragging] = useState(false)
+  const [activeId, setActiveId] = useState<string | null>(null)
 
   const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
     useSensor(MouseSensor, {
       activationConstraint: {
-        distance: 5,
+        distance: 8,
       },
     }),
     useSensor(TouchSensor, {
       activationConstraint: {
-        delay: 100,
-        tolerance: 5,
+        delay: 200,
+        tolerance: 8,
       },
     }),
   )
 
   const handleDragEnd = (event: DragEndEvent) => {
-    setIsDragging(false)
     const { over } = event
+    setActiveId(null)
 
     if (over && !disabled) {
       // Parse the drop target index from the droppable ID
@@ -60,13 +102,16 @@ export function ActiveTimelineDropzone({
     }
   }
 
-  const handleDragStart = () => {
-    setIsDragging(true)
+  const handleDragStart = (event: { active: { id: string | number } }) => {
+    setActiveId(String(event.active.id))
   }
+
+  const isDragging = activeId === MYSTERY_CARD_ID
 
   return (
     <DndContext
       sensors={sensors}
+      modifiers={[snapCenterToCursor]}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
@@ -85,13 +130,16 @@ export function ActiveTimelineDropzone({
 
         {/* Draggable mystery card */}
         <div className="flex justify-center">
-          <DraggableMysteryCardWrapper disabled={disabled} />
+          <DraggableMysteryCardWrapper
+            disabled={disabled}
+            isDragging={isDragging}
+          />
         </div>
       </div>
 
-      {/* Drag overlay for smooth dragging */}
-      <DragOverlay>
-        {isDragging && <DraggableMysteryCard className="opacity-80" />}
+      {/* Drag overlay - follows cursor during drag */}
+      <DragOverlay dropAnimation={null}>
+        {isDragging && <DraggableMysteryCard />}
       </DragOverlay>
     </DndContext>
   )
@@ -99,12 +147,14 @@ export function ActiveTimelineDropzone({
 
 interface DraggableMysteryCardWrapperProps {
   disabled?: boolean
+  isDragging?: boolean
 }
 
 function DraggableMysteryCardWrapper({
   disabled,
+  isDragging,
 }: DraggableMysteryCardWrapperProps) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+  const { attributes, listeners, setNodeRef } = useDraggable({
     id: MYSTERY_CARD_ID,
     disabled,
   })
@@ -115,7 +165,7 @@ function DraggableMysteryCardWrapper({
       {...listeners}
       {...attributes}
       className={cn(
-        'touch-none',
+        'touch-none cursor-grab active:cursor-grabbing',
         isDragging && 'opacity-30',
         disabled && 'cursor-not-allowed opacity-50',
       )}
@@ -131,7 +181,11 @@ interface TimelineDropAreaProps {
   disabled?: boolean
 }
 
-function TimelineDropArea({ cards, isDragging, disabled }: TimelineDropAreaProps) {
+function TimelineDropArea({
+  cards,
+  isDragging,
+  disabled,
+}: TimelineDropAreaProps) {
   // If no cards, show a single drop zone for index 0
   if (cards.length === 0) {
     return (
@@ -143,12 +197,12 @@ function TimelineDropArea({ cards, isDragging, disabled }: TimelineDropAreaProps
 
   // Render cards with drop slots between them
   return (
-    <div className="-m-1 flex items-center gap-1 overflow-x-auto p-1">
+    <div className="flex items-center overflow-x-auto py-1">
       {/* Drop slot before first card */}
       <DropSlot index={0} isActive={isDragging} disabled={disabled} />
 
       {cards.map((card, cardIndex) => (
-        <div key={card._id} className="flex items-center">
+        <div key={card._id} className="flex shrink-0 items-center">
           <GameCard
             title={card.title}
             releaseYear={card.releaseYear}
@@ -186,18 +240,21 @@ function DropSlot({ index, isActive, disabled, isEmpty }: DropSlotProps) {
       ref={setNodeRef}
       className={cn(
         'flex shrink-0 items-center justify-center rounded-lg border-2 border-dashed transition-all duration-200',
-        isEmpty ? 'h-40 w-28' : 'h-40 w-4',
+        // Size: larger when empty timeline, medium when dragging, visible otherwise
+        isEmpty ? 'h-40 w-28' : isActive ? 'mx-1 h-36 w-10' : 'mx-0.5 h-28 w-4',
+        // Colors: show target when dragging
         isActive
-          ? 'border-primary/50 bg-primary/5'
-          : 'border-transparent bg-transparent',
-        isOver && 'border-primary bg-primary/10 scale-105',
-        !isActive && !isEmpty && 'w-2',
+          ? 'border-primary/60 bg-primary/10'
+          : 'border-muted-foreground/30 bg-muted/30',
+        // Hover/over state - expand and highlight
+        isOver && 'border-primary bg-primary/25 w-14! scale-105',
       )}
     >
-      {isEmpty && isActive && (
-        <span className="text-xs text-muted-foreground">Drop here</span>
+      {isEmpty && (
+        <span className="text-xs text-muted-foreground">
+          {isActive ? 'Drop here' : 'Empty timeline'}
+        </span>
       )}
     </div>
   )
 }
-
