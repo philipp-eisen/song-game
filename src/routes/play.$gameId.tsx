@@ -1,10 +1,13 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import type { Id } from '../../convex/_generated/dataModel'
-import { FinishedView, GameView, LobbyView } from '@/components/play'
-import { GameControlsBar } from '@/components/play/game-controls-bar'
+import {
+  FinishedView,
+  GameControlsBar,
+  GameHeader,
+  LobbyView,
+} from '@/components/play'
 import { getGameQuery } from '@/lib/convex-queries'
-import { Badge } from '@/components/ui/badge'
 import {
   Card,
   CardDescription,
@@ -42,40 +45,22 @@ function GamePage() {
 
   const isActiveGame = game.phase !== 'lobby' && game.phase !== 'finished'
 
-  return (
-    <div className={isActiveGame ? 'flex min-h-full flex-col' : ''}>
-      <div className="flex-1 space-y-4 p-4">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">
-              {game.playlistName ?? 'Song Game'}
-            </h1>
-            <p className="text-muted-foreground">
-              Code: <span className="font-mono text-lg">{game.joinCode}</span>
-            </p>
-          </div>
-          <Badge
-            variant={
-              game.phase === 'lobby'
-                ? 'secondary'
-                : game.phase === 'finished'
-                  ? 'default'
-                  : 'outline'
-            }
-            className="text-sm"
-          >
-            {game.phase}
-          </Badge>
-        </div>
-
-        {game.phase === 'lobby' && <LobbyView game={game} />}
-        {isActiveGame && <GameView game={game} />}
-        {game.phase === 'finished' && <FinishedView game={game} />}
+  // Active game layout: header + controls (active timeline shown in controls)
+  if (isActiveGame) {
+    return (
+      <div className="space-y-4 p-4">
+        <GameHeader game={game} />
+        <GameControlsBar game={game} />
       </div>
+    )
+  }
 
-      {/* Sticky game controls bar - shown during active game phases */}
-      {isActiveGame && <GameControlsBar game={game} />}
+  // Lobby/Finished layout: standard scrolling page
+  return (
+    <div className="space-y-4 p-4">
+      <GameHeader game={game} />
+      {game.phase === 'lobby' && <LobbyView game={game} />}
+      {game.phase === 'finished' && <FinishedView game={game} />}
     </div>
   )
 }

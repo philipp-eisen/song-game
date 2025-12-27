@@ -378,6 +378,7 @@ export const skipRound = mutation({
 
 /**
  * Place the current card on the active player's timeline
+ * Can also be used during awaitingReveal to reposition before reveal
  */
 export const placeCard = mutation({
   args: {
@@ -392,7 +393,8 @@ export const placeCard = mutation({
       throw new Error('Game not found')
     }
 
-    if (game.phase !== 'awaitingPlacement') {
+    // Allow placement during both awaitingPlacement and awaitingReveal (for repositioning)
+    if (game.phase !== 'awaitingPlacement' && game.phase !== 'awaitingReveal') {
       throw new Error('Cannot place card in current phase')
     }
 
