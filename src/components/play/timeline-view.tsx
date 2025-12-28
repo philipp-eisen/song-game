@@ -5,6 +5,8 @@ import {
   PointerSensor,
   TouchSensor,
   closestCenter,
+  useDraggable,
+  useDroppable,
   useSensor,
   useSensors,
 } from '@dnd-kit/core'
@@ -15,12 +17,12 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { GameCard } from './game-card'
 import { DraggableMysteryCard, RoundTimelineCard } from './round-timeline-card'
 import { isPlacementCorrect } from './placement-utils'
 
-import type { DragEndEvent, Modifier } from '@dnd-kit/core'
+import type { DragEndEvent, DragOverEvent, Modifier } from '@dnd-kit/core'
 import type { CardData, GameData, TimelineData } from './types'
 
 import { Badge } from '@/components/ui/badge'
@@ -28,6 +30,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
 const MYSTERY_CARD_ID = 'mystery-card'
+const TIMELINE_EMPTY_SLOT_ID = 'timeline-empty-slot'
 
 // Custom modifier to snap the drag overlay so the cursor is at the center of the card
 const snapCenterToCursor: Modifier = ({
@@ -170,19 +173,62 @@ export function TimelineView({
       return items
     }
 
-    // Not repositioning - mystery card starts at the end
-    return [...cardIds, MYSTERY_CARD_ID]
+    // Not repositioning (new draw) - mystery card starts OUTSIDE the timeline.
+    // It'll be inserted when the user drags it into the timeline.
+    return cardIds
   }, [timeline.cards, currentRound?.placementIndex, isRepositioning, editable])
 
   const [items, setItems] = useState<Array<string>>(initialItems)
   const [activeId, setActiveId] = useState<string | null>(null)
+  const wasExternalDragRef = useRef(false)
+  const itemsRef = useRef(items)
 
-  // Sync items when timeline cards change externally or when initialItems change
-  useMemo(() => {
+  useEffect(() => {
+    itemsRef.current = items
+  }, [items])
+
+  // TimelineView stays mounted across rounds. Reset local drag state when we enter the
+  // placement phase (new round started) so the mystery card is back "outside".
+  const lastPhaseRef = useRef<GameData['phase']>(game.phase)
+  useEffect(() => {
+    const prevPhase = lastPhaseRef.current
+    lastPhaseRef.current = game.phase
+
+    if (!editable) return
+    if (game.phase !== 'awaitingPlacement') return
+    if (prevPhase === 'awaitingPlacement') return
+
+    // Only reset at the start of placement (not while repositioning an already-placed card).
+    if (game.currentRound?.placementIndex !== undefined) return
+
+    const cardIds = timeline.cards.map((c) => c._id as string)
+    itemsRef.current = cardIds
+    setItems(cardIds)
+    setActiveId(null)
+    wasExternalDragRef.current = false
+  }, [editable, game.phase, game.currentRound?.placementIndex, timeline.cards])
+
+  // If we're in repositioning mode and somehow don't have the mystery card in the list,
+  // ensure it exists so it can be dragged/sorted.
+  useEffect(() => {
+    if (!editable) return
+    const placementIdx = game.currentRound?.placementIndex
+    if (placementIdx === undefined) return
+    if (items.includes(MYSTERY_CARD_ID)) return
+
+    const cardIds = timeline.cards.map((c) => c._id as string)
+    const newItems = [...cardIds]
+    newItems.splice(Math.min(placementIdx, cardIds.length), 0, MYSTERY_CARD_ID)
+    setItems(newItems)
+  }, [editable, game.currentRound?.placementIndex, items, timeline.cards])
+
+  // Sync items when timeline cards change externally (preserving mystery position if present)
+  useEffect(() => {
     if (!editable) return
 
     const cardIds = timeline.cards.map((c) => c._id as string)
-    const mysteryIndex = items.indexOf(MYSTERY_CARD_ID)
+    const hasMystery = items.includes(MYSTERY_CARD_ID)
+    const mysteryIndex = hasMystery ? items.indexOf(MYSTERY_CARD_ID) : -1
 
     // Check if card IDs have changed
     const currentCardIds = items.filter((id) => id !== MYSTERY_CARD_ID)
@@ -191,12 +237,14 @@ export function TimelineView({
       currentCardIds.some((id, i) => id !== cardIds[i])
 
     if (cardsChanged) {
-      // Rebuild items with mystery card at its current relative position
+      // Rebuild items, preserving the mystery card if it is currently in the list.
+      if (!hasMystery) {
+        setItems(cardIds)
+        return
+      }
+
       const newItems = [...cardIds]
-      const insertAt = Math.min(
-        mysteryIndex >= 0 ? mysteryIndex : cardIds.length,
-        cardIds.length,
-      )
+      const insertAt = Math.min(mysteryIndex, cardIds.length)
       newItems.splice(insertAt, 0, MYSTERY_CARD_ID)
       setItems(newItems)
     }
@@ -223,36 +271,140 @@ export function TimelineView({
 
   const handleDragStart = useCallback(
     (event: { active: { id: string | number } }) => {
-      setActiveId(String(event.active.id))
+      const id = String(event.active.id)
+      setActiveId(id)
+      wasExternalDragRef.current = false
     },
     [],
   )
 
+  const handleDragOver = useCallback((event: DragOverEvent) => {
+    const { active, over } = event
+    const activeItemId = String(active.id)
+    const overId = over ? String(over.id) : null
+
+    if (activeItemId !== MYSTERY_CARD_ID) return
+    if (!overId) return
+
+    const currentItems = itemsRef.current
+    if (currentItems.includes(MYSTERY_CARD_ID)) return
+
+    const insertAt =
+      currentItems.length === 0 && overId === TIMELINE_EMPTY_SLOT_ID
+        ? 0
+        : currentItems.indexOf(overId)
+
+    if (insertAt === -1) return
+
+    const newItems = [...currentItems]
+    newItems.splice(insertAt, 0, MYSTERY_CARD_ID)
+
+    itemsRef.current = newItems
+    wasExternalDragRef.current = true
+    setItems(newItems)
+  }, [])
+
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       const { active, over } = event
+      const activeItemId = String(active.id)
       setActiveId(null)
 
-      if (!over || dragDisabled) return
+      if (dragDisabled) {
+        // If we inserted the mystery card from outside but placement is disabled,
+        // revert it back outside.
+        if (
+          activeItemId === MYSTERY_CARD_ID &&
+          wasExternalDragRef.current === true
+        ) {
+          const newItems = itemsRef.current.filter(
+            (id) => id !== MYSTERY_CARD_ID,
+          )
+          itemsRef.current = newItems
+          setItems(newItems)
+        }
+        wasExternalDragRef.current = false
+        return
+      }
 
-      const oldIndex = items.indexOf(String(active.id))
-      const overIndex = items.indexOf(String(over.id))
+      // Dropped outside any droppable: if this was an "external insert" attempt,
+      // put the card back outside.
+      if (!over) {
+        if (
+          activeItemId === MYSTERY_CARD_ID &&
+          wasExternalDragRef.current === true
+        ) {
+          const newItems = itemsRef.current.filter(
+            (id) => id !== MYSTERY_CARD_ID,
+          )
+          itemsRef.current = newItems
+          setItems(newItems)
+        }
+        wasExternalDragRef.current = false
+        return
+      }
 
-      if (oldIndex !== -1 && overIndex !== -1 && oldIndex !== overIndex) {
-        const newItems = arrayMove(items, oldIndex, overIndex)
-        setItems(newItems)
+      const overId = String(over.id)
 
-        // Calculate the new position of the mystery card
+      // Special-case: allow dropping into an empty timeline.
+      if (
+        activeItemId === MYSTERY_CARD_ID &&
+        overId === TIMELINE_EMPTY_SLOT_ID
+      ) {
+        let newItems = itemsRef.current
+        if (!newItems.includes(MYSTERY_CARD_ID)) {
+          newItems = [...newItems]
+          newItems.splice(0, 0, MYSTERY_CARD_ID)
+          itemsRef.current = newItems
+          setItems(newItems)
+        }
+
         const newMysteryIndex = newItems.indexOf(MYSTERY_CARD_ID)
         if (newMysteryIndex !== -1 && onPlaceCard) {
           onPlaceCard(newMysteryIndex)
         }
+
+        wasExternalDragRef.current = false
+        return
       }
+
+      const currentItems = itemsRef.current
+      const oldIndex = currentItems.indexOf(activeItemId)
+      const overIndex = currentItems.indexOf(overId)
+
+      // Only handle drops over sortable items
+      if (oldIndex === -1 || overIndex === -1) {
+        wasExternalDragRef.current = false
+        return
+      }
+
+      let newItems = currentItems
+      const didMove = oldIndex !== overIndex
+
+      if (didMove) {
+        newItems = arrayMove(currentItems, oldIndex, overIndex)
+        itemsRef.current = newItems
+        setItems(newItems)
+      }
+
+      // Calculate the new position of the mystery card
+      const newMysteryIndex = newItems.indexOf(MYSTERY_CARD_ID)
+      if (
+        activeItemId === MYSTERY_CARD_ID &&
+        newMysteryIndex !== -1 &&
+        onPlaceCard &&
+        (didMove || wasExternalDragRef.current === true)
+      ) {
+        onPlaceCard(newMysteryIndex)
+      }
+
+      wasExternalDragRef.current = false
     },
-    [items, dragDisabled, onPlaceCard],
+    [dragDisabled, onPlaceCard],
   )
 
   const isDragging = activeId === MYSTERY_CARD_ID
+  const showExternalMysteryCard = editable && !items.includes(MYSTERY_CARD_ID)
 
   // Create a map of card data for quick lookup (editable mode)
   const cardDataMap = useMemo(() => {
@@ -304,33 +456,58 @@ export function TimelineView({
             collisionDetection={closestCenter}
             modifiers={[snapCenterToCursor]}
             onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
           >
             <SortableContext
               items={items}
               strategy={horizontalListSortingStrategy}
             >
-              <div className="-m-1 flex gap-2 overflow-x-auto p-1">
-                {items.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No cards yet</p>
-                ) : (
-                  items.map((id) => {
-                    if (id === MYSTERY_CARD_ID) {
-                      return (
-                        <SortableMysteryCard
-                          key={id}
-                          disabled={dragDisabled}
-                          isDragging={isDragging}
-                        />
-                      )
-                    }
-
-                    const card = cardDataMap.get(id)
-                    if (!card) return null
-
-                    return <SortableTimelineCard key={id} id={id} card={card} />
-                  })
+              <div className="space-y-2">
+                {showExternalMysteryCard && (
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="shrink-0 text-xs">
+                      To place
+                    </Badge>
+                    <ExternalMysteryCard disabled={dragDisabled} />
+                    <span className="text-xs text-muted-foreground">
+                      Drag into timeline
+                    </span>
+                  </div>
                 )}
+
+                <div
+                  className={cn(
+                    '-m-1 flex gap-2 overflow-x-auto p-1',
+                    // Subtle highlight while dragging the (external) mystery card toward the timeline.
+                    isDragging &&
+                      showExternalMysteryCard &&
+                      'rounded-md ring-1 ring-primary/30',
+                  )}
+                >
+                  {items.length === 0 ? (
+                    <TimelineEmptyDropSlot disabled={dragDisabled} />
+                  ) : (
+                    items.map((id) => {
+                      if (id === MYSTERY_CARD_ID) {
+                        return (
+                          <SortableMysteryCard
+                            key={id}
+                            disabled={dragDisabled}
+                            isDragging={isDragging}
+                          />
+                        )
+                      }
+
+                      const card = cardDataMap.get(id)
+                      if (!card) return null
+
+                      return (
+                        <SortableTimelineCard key={id} id={id} card={card} />
+                      )
+                    })
+                  )}
+                </div>
               </div>
             </SortableContext>
 
@@ -394,6 +571,47 @@ export function TimelineView({
 interface SortableMysteryCardProps {
   disabled?: boolean
   isDragging?: boolean
+}
+
+function TimelineEmptyDropSlot({ disabled }: { disabled?: boolean }) {
+  const { isOver, setNodeRef } = useDroppable({
+    id: TIMELINE_EMPTY_SLOT_ID,
+    disabled,
+  })
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        'flex h-40 w-28 shrink-0 items-center justify-center rounded-md border-2 border-dashed text-center',
+        isOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25',
+        disabled && 'opacity-50',
+      )}
+    >
+      <span className="px-2 text-xs text-muted-foreground">Drop here</span>
+    </div>
+  )
+}
+
+function ExternalMysteryCard({ disabled }: { disabled?: boolean }) {
+  const { attributes, listeners, setNodeRef } = useDraggable({
+    id: MYSTERY_CARD_ID,
+    disabled,
+  })
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      className={cn(
+        'shrink-0 touch-none cursor-grab active:cursor-grabbing',
+        disabled && 'cursor-not-allowed opacity-50',
+      )}
+    >
+      <DraggableMysteryCard />
+    </div>
+  )
 }
 
 function SortableMysteryCard({
