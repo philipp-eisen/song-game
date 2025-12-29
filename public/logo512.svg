@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="vinylGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#7c3aed"/>
+      <stop offset="50%" style="stop-color:#ec4899"/>
+      <stop offset="100%" style="stop-color:#f97316"/>
+    </linearGradient>
+    <linearGradient id="noteGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#fbbf24"/>
+      <stop offset="100%" style="stop-color:#f59e0b"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="64" height="64" fill="#0a0a0a" rx="12"/>
+  
+  <!-- Vinyl record / Era rings -->
+  <circle cx="32" cy="32" r="26" fill="url(#vinylGradient)" opacity="0.9"/>
+  <circle cx="32" cy="32" r="20" fill="none" stroke="#ffffff" stroke-width="1" opacity="0.3"/>
+  <circle cx="32" cy="32" r="14" fill="none" stroke="#ffffff" stroke-width="1" opacity="0.4"/>
+  <circle cx="32" cy="32" r="8" fill="none" stroke="#ffffff" stroke-width="1" opacity="0.5"/>
+  <circle cx="32" cy="32" r="4" fill="#0a0a0a"/>
+  
+  <!-- Musical note -->
+  <g transform="translate(22, 18)">
+    <ellipse cx="5" cy="24" rx="5" ry="4" fill="url(#noteGradient)"/>
+    <rect x="8" y="6" width="2.5" height="20" fill="url(#noteGradient)"/>
+    <path d="M10.5 6 Q16 3, 19 8 Q22 13, 19 16 L19 11 Q17 14, 14 12.5 Q11 11, 10.5 6" fill="url(#noteGradient)"/>
+  </g>
+</svg>
+
