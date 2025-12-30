@@ -64,7 +64,7 @@ export function SpotifyPlayer({ spotifyUri, previewUrl }: SpotifyPlayerProps) {
             href={spotifyUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="ml-auto text-xs bg-[#1DB954] hover:bg-[#1ed760] text-white px-3 py-1 rounded-full transition-colors"
+            className="ml-auto text-xs bg-spotify hover:bg-spotify/90 text-spotify-foreground px-3 py-1 rounded-full transition-colors"
           >
             Open Spotify
           </a>
@@ -125,7 +125,7 @@ export function SpotifyPlayer({ spotifyUri, previewUrl }: SpotifyPlayerProps) {
       </div>
 
       {usingFallback && (
-        <span className="text-[10px] text-amber-600 shrink-0">30s preview</span>
+        <span className="text-[10px] text-warning shrink-0">30s preview</span>
       )}
 
       {spotifyUrl && (
@@ -133,7 +133,7 @@ export function SpotifyPlayer({ spotifyUri, previewUrl }: SpotifyPlayerProps) {
           href={spotifyUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="shrink-0 text-muted-foreground hover:text-[#1DB954] transition-colors"
+          className="shrink-0 text-muted-foreground hover:text-spotify transition-colors"
           title="Open in Spotify"
         >
           <SpotifyLogoIcon weight="duotone" className="h-5 w-5" />

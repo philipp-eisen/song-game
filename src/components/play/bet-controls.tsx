@@ -65,7 +65,7 @@ export function BetControls({ game, myPlayer }: BetControlsProps) {
       >
         Place Bet (1 Token)
       </Button>
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   )
 }

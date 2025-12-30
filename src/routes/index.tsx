@@ -169,7 +169,7 @@ function LoginCTA({ isGuest }: LoginCTAProps) {
       <CardContent className="flex flex-col items-center gap-3">
         <Button
           onClick={() => authClient.signIn.social({ provider: 'spotify' })}
-          className="w-full max-w-xs bg-[#1DB954] hover:bg-[#1ed760]"
+          className="w-full max-w-xs bg-spotify text-spotify-foreground hover:bg-spotify/90"
           size="lg"
         >
           <SpotifyLogo weight="fill" className="mr-2 h-5 w-5" />

@@ -147,12 +147,10 @@ function RevealedCardFace({
       size="sm"
       className={cn(
         'relative h-full w-full items-center gap-1 p-2 text-center transition-colors duration-300',
-        isRevealed &&
-          isCorrect === true &&
-          'ring-2 ring-green-500 ring-offset-1',
+        isRevealed && isCorrect === true && 'ring-2 ring-success ring-offset-1',
         isRevealed &&
           isCorrect === false &&
-          'ring-2 ring-red-500 ring-offset-1',
+          'ring-2 ring-destructive ring-offset-1',
       )}
     >
       <CardContent className="flex flex-col items-center gap-0 p-0">
@@ -187,7 +185,7 @@ function RevealedCardFace({
         <motion.div
           className={cn(
             'absolute -right-2 -top-2 rounded-full p-0.5',
-            isCorrect ? 'bg-green-500' : 'bg-red-500',
+            isCorrect ? 'bg-success' : 'bg-destructive',
           )}
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}

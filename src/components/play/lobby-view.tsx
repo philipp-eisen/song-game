@@ -144,7 +144,7 @@ export function LobbyView({ game }: LobbyViewProps) {
             </div>
           )}
 
-          {error && <p className="text-sm text-red-500">{error}</p>}
+          {error && <p className="text-sm text-destructive">{error}</p>}
 
           {/* Actions */}
           <div className="flex gap-2">

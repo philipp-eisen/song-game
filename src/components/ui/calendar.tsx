@@ -2,15 +2,14 @@
 
 import * as React from "react"
 import {
-  
   DayPicker,
-  getDefaultClassNames
+  getDefaultClassNames,
+  type DayButton,
 } from "react-day-picker"
-import { CaretDownIcon, CaretLeftIcon, CaretRightIcon } from "@phosphor-icons/react"
-import type {DayButton} from "react-day-picker";
 
 import { cn } from "@/lib/utils"
 import { Button, buttonVariants } from "@/components/ui/button"
+import { CaretLeftIcon, CaretRightIcon, CaretDownIcon } from "@phosphor-icons/react"
 
 function Calendar({
   className,
@@ -30,7 +29,7 @@ function Calendar({
     <DayPicker
       showOutsideDays={showOutsideDays}
       className={cn(
-        "p-2 [--cell-size:--spacing(7)] bg-background group/calendar [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",
+        "p-3 [--cell-radius:var(--radius-4xl)] [--cell-size:--spacing(8)] bg-background group/calendar [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",
         String.raw`rtl:**:[.rdp-button\_next>svg]:rotate-180`,
         String.raw`rtl:**:[.rdp-button\_previous>svg]:rotate-180`,
         className

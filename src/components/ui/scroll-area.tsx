@@ -1,3 +1,4 @@
+import * as React from "react"
 import { ScrollArea as ScrollAreaPrimitive } from "@base-ui/react/scroll-area"
 
 import { cn } from "@/lib/utils"
@@ -43,7 +44,7 @@ function ScrollBar({
     >
       <ScrollAreaPrimitive.Thumb
         data-slot="scroll-area-thumb"
-        className="rounded-none bg-border relative flex-1"
+        className="rounded-full bg-border relative flex-1"
       />
     </ScrollAreaPrimitive.Scrollbar>
   )

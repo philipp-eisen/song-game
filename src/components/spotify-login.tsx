@@ -26,7 +26,7 @@ export function SpotifyLogin() {
       <CardContent>
         <Button
           onClick={handleSpotifyLogin}
-          className="w-full bg-[#1DB954] hover:bg-[#1ed760] text-white"
+          className="w-full bg-spotify text-spotify-foreground hover:bg-spotify/90"
         >
           <SpotifyLogo weight="duotone" className="mr-2 size-5" />
           Log in with Spotify
