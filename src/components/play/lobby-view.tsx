@@ -72,7 +72,7 @@ export function LobbyView({ game }: LobbyViewProps) {
     if (!confirm('Are you sure you want to delete this game?')) return
     try {
       await deleteGame({ gameId: game._id })
-      navigate({ to: '/game' })
+      navigate({ to: '/' })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete game')
     }
@@ -81,7 +81,7 @@ export function LobbyView({ game }: LobbyViewProps) {
   const handleLeave = async () => {
     try {
       await leaveGame({ gameId: game._id })
-      navigate({ to: '/game' })
+      navigate({ to: '/' })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to leave game')
     }

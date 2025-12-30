@@ -21,11 +21,6 @@ const menuItems: Array<{ title: string; url: string; icon: Icon }> = [
     url: '/',
     icon: House,
   },
-  {
-    title: 'Game',
-    url: '/game',
-    icon: MusicNotes,
-  },
 ]
 
 export function AppSidebar() {
