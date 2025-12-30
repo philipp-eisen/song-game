@@ -60,7 +60,7 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" render={<Link to="/" />}>
               <figure className="flex aspect-square size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <AppLogo size="100%" />
+                <AppLogo size="80%" />
               </figure>
               <article className="flex flex-col gap-0.5 leading-none">
                 <span className="font-semibold">Song Eras</span>
