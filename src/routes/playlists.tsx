@@ -70,7 +70,7 @@ function GuestUpgradeCTA() {
       <CardContent>
         <Button
           onClick={() => authClient.signIn.social({ provider: 'spotify' })}
-          className="bg-[#1DB954] hover:bg-[#1ed760]"
+          className="bg-spotify text-spotify-foreground hover:bg-spotify/90"
         >
           <SpotifyLogo weight="fill" className="mr-2 h-4 w-4" />
           Connect Spotify
@@ -141,7 +141,7 @@ function ImportPlaylistCard() {
           </p>
         )}
         {success && (
-          <p className="text-sm text-green-500" role="status">
+          <p className="text-sm text-success" role="status">
             {success}
           </p>
         )}

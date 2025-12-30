@@ -124,9 +124,9 @@ function UserMenu() {
           <SidebarMenuButton
             size="lg"
             onClick={() => authClient.signIn.social({ provider: 'spotify' })}
-            className="bg-[#1DB954]/10 hover:bg-[#1DB954]/20"
+            className="bg-spotify/10 hover:bg-spotify/20"
           >
-            <SpotifyLogo weight="fill" className="size-5 text-[#1DB954]" />
+            <SpotifyLogo weight="fill" className="size-5 text-spotify" />
             <span className="font-medium">Sign in with Spotify</span>
           </SidebarMenuButton>
         </SidebarMenuItem>
@@ -211,7 +211,7 @@ function UserMenu() {
                     authClient.signIn.social({ provider: 'spotify' })
                   }
                 >
-                  <SpotifyLogo weight="fill" className="text-[#1DB954]" />
+                  <SpotifyLogo weight="fill" className="text-spotify" />
                   Upgrade to Spotify
                 </DropdownMenuItem>
               </>

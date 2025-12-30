@@ -104,7 +104,7 @@ export function GameControlsBar({ game }: GameControlsBarProps) {
                 dragDisabled={isPlacing}
               />
               {placementError && (
-                <p className="text-center text-sm text-red-500">
+                <p className="text-center text-sm text-destructive">
                   {placementError}
                 </p>
               )}
