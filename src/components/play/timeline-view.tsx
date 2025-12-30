@@ -1,11 +1,13 @@
 import {
-  TimelineViewEditable,
-  type TimelineViewEditableProps,
+  TimelineViewEditable
+  
 } from './timeline-view-editable'
 import {
-  TimelineViewReadonly,
-  type TimelineViewReadonlyProps,
+  TimelineViewReadonly
+  
 } from './timeline-view-readonly'
+import type {TimelineViewEditableProps} from './timeline-view-editable';
+import type {TimelineViewReadonlyProps} from './timeline-view-readonly';
 
 import type { CardData, GameData, TimelineData } from './types'
 
