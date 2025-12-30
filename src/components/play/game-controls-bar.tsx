@@ -11,7 +11,7 @@ import {
   getCurrentRoundSongPreviewQuery,
 } from '@/lib/convex-queries'
 import { SpotifyPlayer } from '@/components/spotify-player'
-import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 interface GameControlsBarProps {
   game: GameData
@@ -67,60 +67,46 @@ export function GameControlsBar({ game }: GameControlsBarProps) {
   }
 
   return (
-    <div className="shrink-0 rounded-lg border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
-      <div className="space-y-3 p-4">
-        {/* Spotify Player - Always rendered */}
-        <SpotifyPlayer
-          spotifyUri={songPreview?.spotifyUri}
-          previewUrl={songPreview?.previewUrl}
+    <div className="space-y-4">
+      {/* Card 1: Spotify Player */}
+      <Card>
+        <CardHeader className="py-3">
+          <CardTitle className="text-base">Now Playing</CardTitle>
+        </CardHeader>
+        <CardContent className="pb-4">
+          <SpotifyPlayer
+            spotifyUri={songPreview?.spotifyUri}
+            previewUrl={songPreview?.previewUrl}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Card 2: Timeline (rendered by TimelineView with its own Card wrapper) */}
+      {activePlayerTimeline && (
+        <TimelineView
+          timeline={activePlayerTimeline}
+          game={game}
+          isActivePlayer={true}
+          currentCard={currentCard}
+          editable={shouldShowDropzone}
+          onPlaceCard={handlePlaceCard}
+          dragDisabled={isPlacing}
         />
+      )}
 
-        {/* Turn Info & Controls */}
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-2 text-sm">
-            <span className="font-medium">
-              {activePlayer?.displayName}'s Turn
-            </span>
-            {isActivePlayer && (
-              <Badge variant="default" className="text-xs">
-                Your Turn
-              </Badge>
-            )}
-            <span className="ml-auto text-muted-foreground">
-              {game.phase} • {game.deckRemaining} cards left
-            </span>
-          </div>
+      {placementError && (
+        <p className="text-center text-sm text-destructive">{placementError}</p>
+      )}
 
-          {/* Active player's timeline - always visible */}
-          {activePlayerTimeline && (
-            <div className="space-y-2">
-              <TimelineView
-                timeline={activePlayerTimeline}
-                game={game}
-                isActivePlayer={true}
-                currentCard={currentCard}
-                editable={shouldShowDropzone}
-                onPlaceCard={handlePlaceCard}
-                dragDisabled={isPlacing}
-              />
-              {placementError && (
-                <p className="text-center text-sm text-destructive">
-                  {placementError}
-                </p>
-              )}
-            </div>
-          )}
-
-          {activePlayer && (
-            <TurnControls
-              game={game}
-              activePlayer={activePlayer}
-              isActivePlayer={isActivePlayer}
-              isHost={isHost}
-            />
-          )}
-        </div>
-      </div>
+      {/* Turn Controls */}
+      {activePlayer && (
+        <TurnControls
+          game={game}
+          activePlayer={activePlayer}
+          isActivePlayer={isActivePlayer}
+          isHost={isHost}
+        />
+      )}
     </div>
   )
 }

@@ -338,6 +338,63 @@ export function TimelineViewEditable({
     return map
   }, [timeline.cards])
 
+  const content = (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      modifiers={[snapCenterToCursor]}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDragEnd={handleDragEnd}
+    >
+      <SortableContext items={items} strategy={horizontalListSortingStrategy}>
+        <div className="space-y-2">
+          {showExternalMysteryCard && (
+            <div className="flex items-center gap-2">
+              <ExternalMysteryCard disabled={dragDisabled} />
+            </div>
+          )}
+
+          <div
+            className={cn(
+              '-m-1 flex gap-2 overflow-x-auto p-1',
+              // Subtle highlight while dragging the (external) mystery card toward the timeline.
+              isDragging &&
+                showExternalMysteryCard &&
+                'rounded-md ring-1 ring-primary/30',
+            )}
+          >
+            {items.length === 0 ? (
+              <TimelineEmptyDropSlot disabled={dragDisabled} />
+            ) : (
+              items.map((id) => {
+                if (id === MYSTERY_CARD_ID) {
+                  return (
+                    <SortableMysteryCard
+                      key={id}
+                      disabled={dragDisabled}
+                      isDragging={isDragging}
+                    />
+                  )
+                }
+
+                const card = cardDataMap.get(id)
+                if (!card) return null
+
+                return <SortableTimelineCard key={id} id={id} card={card} />
+              })
+            )}
+          </div>
+        </div>
+      </SortableContext>
+
+      {/* Drag overlay - follows cursor during drag */}
+      <DragOverlay dropAnimation={null}>
+        {isDragging && <DraggableMysteryCard />}
+      </DragOverlay>
+    </DndContext>
+  )
+
   return (
     <Card className={isActivePlayer ? 'border-2 border-primary' : ''}>
       <CardHeader className="py-3">
@@ -363,65 +420,7 @@ export function TimelineViewEditable({
           </div>
         </div>
       </CardHeader>
-      <CardContent className="py-2">
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          modifiers={[snapCenterToCursor]}
-          onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext
-            items={items}
-            strategy={horizontalListSortingStrategy}
-          >
-            <div className="space-y-2">
-              {showExternalMysteryCard && (
-                <div className="flex items-center gap-2">
-                  <ExternalMysteryCard disabled={dragDisabled} />
-                </div>
-              )}
-
-              <div
-                className={cn(
-                  '-m-1 flex gap-2 overflow-x-auto p-1',
-                  // Subtle highlight while dragging the (external) mystery card toward the timeline.
-                  isDragging &&
-                    showExternalMysteryCard &&
-                    'rounded-md ring-1 ring-primary/30',
-                )}
-              >
-                {items.length === 0 ? (
-                  <TimelineEmptyDropSlot disabled={dragDisabled} />
-                ) : (
-                  items.map((id) => {
-                    if (id === MYSTERY_CARD_ID) {
-                      return (
-                        <SortableMysteryCard
-                          key={id}
-                          disabled={dragDisabled}
-                          isDragging={isDragging}
-                        />
-                      )
-                    }
-
-                    const card = cardDataMap.get(id)
-                    if (!card) return null
-
-                    return <SortableTimelineCard key={id} id={id} card={card} />
-                  })
-                )}
-              </div>
-            </div>
-          </SortableContext>
-
-          {/* Drag overlay - follows cursor during drag */}
-          <DragOverlay dropAnimation={null}>
-            {isDragging && <DraggableMysteryCard />}
-          </DragOverlay>
-        </DndContext>
-      </CardContent>
+      <CardContent className="py-2">{content}</CardContent>
     </Card>
   )
 }

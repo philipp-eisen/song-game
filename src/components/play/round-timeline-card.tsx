@@ -113,14 +113,14 @@ function MysteryCardFace() {
   return (
     <Card
       size="sm"
-      className="flex h-full w-full items-center justify-center bg-gradient-to-br from-mystery to-mystery/70 p-2"
+      className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary to-primary/70 p-2"
     >
       <CardContent className="flex flex-col items-center justify-center gap-2 p-0">
         <SealQuestionIcon
-          className="h-16 w-16 text-mystery-foreground/90"
+          className="h-16 w-16 text-primary-foreground/90"
           weight="duotone"
         />
-        <span className="text-xs font-medium text-mystery-foreground/80">
+        <span className="text-xs font-medium text-primary-foreground/80">
           Mystery Card
         </span>
       </CardContent>
@@ -212,16 +212,16 @@ export function DraggableMysteryCard({ className }: { className?: string }) {
     <Card
       size="sm"
       className={cn(
-        'flex h-40 w-28 shrink-0 cursor-grab items-center justify-center bg-gradient-to-br from-mystery to-mystery/70 p-2 active:cursor-grabbing',
+        'flex h-40 w-28 shrink-0 cursor-grab items-center justify-center bg-gradient-to-br from-primary to-primary/70 p-2 active:cursor-grabbing',
         className,
       )}
     >
       <CardContent className="flex flex-col items-center justify-center gap-2 p-0">
         <SealQuestionIcon
-          className="h-16 w-16 text-mystery-foreground/90"
+          className="h-16 w-16 text-primary-foreground/90"
           weight="duotone"
         />
-        <span className="text-xs font-medium text-mystery-foreground/80">
+        <span className="text-xs font-medium text-primary-foreground/80">
           Drag to place
         </span>
       </CardContent>
