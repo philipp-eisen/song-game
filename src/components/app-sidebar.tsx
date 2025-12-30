@@ -10,6 +10,7 @@ import {
 import { Link } from '@tanstack/react-router'
 import type { Icon } from '@phosphor-icons/react'
 import { authClient } from '@/lib/auth-client'
+import { AppLogo } from '@/components/app-logo'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   DropdownMenu,
@@ -60,7 +61,7 @@ export function AppSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" render={<Link to="/" />}>
               <figure className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <MusicNotes weight="duotone" className="size-4" />
+                <AppLogo className="size-5" />
               </figure>
               <article className="flex flex-col gap-0.5 leading-none">
                 <span className="font-semibold">Song Eras</span>
