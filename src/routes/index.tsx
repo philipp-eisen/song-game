@@ -2,7 +2,7 @@ import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { useMutation } from 'convex/react'
 import { useState } from 'react'
-import { MusicNotes, SpotifyLogo } from '@phosphor-icons/react'
+import { SpotifyLogo } from '@phosphor-icons/react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { listMyPlaylistsQuery } from '@/lib/convex-queries'
@@ -23,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { AppLogo } from '@/components/app-logo'
 
 export const Route = createFileRoute('/')({
   loader: async ({ context }) => {
@@ -54,12 +55,10 @@ function HomePage() {
       {/* Hero */}
       <header className="mb-8 text-center">
         <div className="mb-4 flex items-center justify-center gap-3">
-          <MusicNotes weight="duotone" className="h-12 w-12 text-primary" />
-          <h1 className="text-4xl font-bold">Song Game</h1>
+          <AppLogo size={48} className="text-primary" />
+          <h1 className="text-4xl font-bold">Song Eras</h1>
         </div>
-        <p className="text-lg text-muted-foreground">
-          Test your music knowledge with friends
-        </p>
+        <p className="text-lg text-muted-foreground">When was it released?</p>
       </header>
 
       <div className="grid w-full max-w-2xl gap-6">
@@ -156,7 +155,7 @@ interface LoginCTAProps {
 
 function LoginCTA({ isGuest }: LoginCTAProps) {
   return (
-    <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10">
+    <Card className="border-primary/20 bg-linear-to-br from-primary/5 to-primary/10">
       <CardHeader className="text-center">
         <CardTitle className="text-xl">
           {isGuest ? 'Upgrade to Create Games' : 'Want to host your own game?'}

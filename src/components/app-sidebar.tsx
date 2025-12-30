@@ -1,15 +1,15 @@
 import {
-  CaretUpDown,
-  GameController,
-  House,
-  MusicNotes,
-  Playlist,
-  SignOut,
-  SpotifyLogo,
+  CaretUpDownIcon,
+  GameControllerIcon,
+  HouseIcon,
+  PlaylistIcon,
+  SignOutIcon,
+  SpotifyLogoIcon,
 } from '@phosphor-icons/react'
 import { Link } from '@tanstack/react-router'
 import type { Icon } from '@phosphor-icons/react'
 import { authClient } from '@/lib/auth-client'
+import { AppLogo } from '@/components/app-logo'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   DropdownMenu,
@@ -38,17 +38,17 @@ const menuItems: Array<{ title: string; url: string; icon: Icon }> = [
   {
     title: 'Home',
     url: '/',
-    icon: House,
+    icon: HouseIcon,
   },
   {
     title: 'My Games',
     url: '/games',
-    icon: GameController,
+    icon: GameControllerIcon,
   },
   {
     title: 'Playlists',
     url: '/playlists',
-    icon: Playlist,
+    icon: PlaylistIcon,
   },
 ]
 
@@ -59,13 +59,13 @@ export function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" render={<Link to="/" />}>
-              <figure className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <MusicNotes weight="duotone" className="size-4" />
+              <figure className="flex aspect-square size-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                <AppLogo size="80%" />
               </figure>
               <article className="flex flex-col gap-0.5 leading-none">
                 <span className="font-semibold">Song Eras</span>
                 <span className="text-xs text-muted-foreground">
-                  Guess the track
+                  When was it released?
                 </span>
               </article>
             </SidebarMenuButton>
@@ -126,7 +126,7 @@ function UserMenu() {
             onClick={() => authClient.signIn.social({ provider: 'spotify' })}
             className="bg-spotify/10 hover:bg-spotify/20"
           >
-            <SpotifyLogo weight="fill" className="size-5 text-spotify" />
+            <SpotifyLogoIcon weight="duotone" className="size-5 text-spotify" />
             <span className="font-medium">Sign in with Spotify</span>
           </SidebarMenuButton>
         </SidebarMenuItem>
@@ -173,7 +173,7 @@ function UserMenu() {
                     </span>
                   )}
                 </article>
-                <CaretUpDown className="ml-auto size-4" />
+                <CaretUpDownIcon className="ml-auto size-4" />
               </SidebarMenuButton>
             }
           />
@@ -192,7 +192,9 @@ function UserMenu() {
                     <AvatarFallback>{initials}</AvatarFallback>
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-semibold">{displayName}</span>
+                    <span className="truncate font-semibold">
+                      {displayName}
+                    </span>
                     {!isGuest && (
                       <span className="truncate text-xs text-muted-foreground">
                         {session.user.email}
@@ -211,7 +213,7 @@ function UserMenu() {
                     authClient.signIn.social({ provider: 'spotify' })
                   }
                 >
-                  <SpotifyLogo weight="fill" className="text-spotify" />
+                  <SpotifyLogoIcon weight="duotone" className="text-spotify" />
                   Upgrade to Spotify
                 </DropdownMenuItem>
               </>
@@ -219,7 +221,7 @@ function UserMenu() {
 
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleSignOut}>
-              <SignOut />
+              <SignOutIcon weight="duotone" />
               Sign out
             </DropdownMenuItem>
           </DropdownMenuContent>
