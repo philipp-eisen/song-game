@@ -13,7 +13,8 @@
     "lint": "eslint",
     "format": "prettier",
     "check": "prettier --write . && eslint --fix",
-    "deploy": "convex deploy --cmd 'pnpm run build'"
+    "deploy": "convex deploy --cmd 'pnpm run build'",
+    "generate:apple-music": "openapi-ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.0.0",
@@ -66,6 +67,7 @@
   },
   "devDependencies": {
     "@convex-dev/eslint-plugin": "^1.1.1",
+    "@hey-api/openapi-ts": "^0.89.2",
     "@tanstack/devtools-vite": "^0.3.11",
     "@tanstack/eslint-config": "^0.3.0",
     "@testing-library/dom": "^10.4.0",
