@@ -13,6 +13,7 @@ import type * as auth from "../auth.js";
 import type * as games from "../games.js";
 import type * as http from "../http.js";
 import type * as playlistImport from "../playlistImport.js";
+import type * as playlistImportInternal from "../playlistImportInternal.js";
 import type * as playlists from "../playlists.js";
 import type * as spotify from "../spotify.js";
 import type * as spotifyInternal from "../spotifyInternal.js";
@@ -31,6 +32,7 @@ declare const fullApi: ApiFromModules<{
   games: typeof games;
   http: typeof http;
   playlistImport: typeof playlistImport;
+  playlistImportInternal: typeof playlistImportInternal;
   playlists: typeof playlists;
   spotify: typeof spotify;
   spotifyInternal: typeof spotifyInternal;

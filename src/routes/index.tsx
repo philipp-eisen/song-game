@@ -2,7 +2,7 @@ import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { useMutation } from 'convex/react'
 import { useState } from 'react'
-import { SpotifyLogo } from '@phosphor-icons/react'
+import { ArrowsClockwise, SpotifyLogo } from '@phosphor-icons/react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { listMyPlaylistsQuery } from '@/lib/convex-queries'
@@ -206,7 +206,13 @@ function CreateGameSection() {
 
   const createGame = useMutation(api.games.create)
 
-  // If no playlists, show a CTA to import playlists
+  // Filter to only ready playlists for game creation
+  const readyPlaylists = playlists.filter((p) => p.status === 'ready')
+  const processingPlaylists = playlists.filter(
+    (p) => p.status === 'processing' || p.status === 'importing',
+  )
+
+  // If no playlists at all, show a CTA to import playlists
   if (playlists.length === 0) {
     return (
       <Card>
@@ -236,7 +242,7 @@ function CreateGameSection() {
 
     try {
       const result = await createGame({
-        playlistId: selectedPlaylist as Id<'spotifyPlaylists'>,
+        playlistId: selectedPlaylist as Id<'playlists'>,
         mode,
         playerNames:
           mode === 'hostOnly' ? playerNames.filter((n) => n.trim()) : undefined,
@@ -279,26 +285,48 @@ function CreateGameSection() {
           <label className="text-sm font-medium" htmlFor="playlist-select">
             Select Playlist
           </label>
-          <Select
-            value={selectedPlaylist || null}
-            onValueChange={(value) => setSelectedPlaylist(value ?? '')}
-          >
-            <SelectTrigger className="w-full" id="playlist-select">
-              <SelectValue>
-                {selectedPlaylist
-                  ? (playlists.find((p) => p._id === selectedPlaylist)?.name ??
-                    'Choose a playlist...')
-                  : 'Choose a playlist...'}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {playlists.map((p) => (
-                <SelectItem key={p._id} value={p._id}>
-                  {p.name} ({p.trackCount} tracks)
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {readyPlaylists.length === 0 ? (
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                No playlists are ready yet.
+              </p>
+              {processingPlaylists.length > 0 && (
+                <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                  <ArrowsClockwise className="size-4 animate-spin" />
+                  {processingPlaylists.length} playlist
+                  {processingPlaylists.length !== 1 && 's'} still processing...
+                </p>
+              )}
+              <Button
+                render={<Link to="/playlists" />}
+                variant="outline"
+                size="sm"
+              >
+                View Playlists
+              </Button>
+            </div>
+          ) : (
+            <Select
+              value={selectedPlaylist || null}
+              onValueChange={(value) => setSelectedPlaylist(value ?? '')}
+            >
+              <SelectTrigger className="w-full" id="playlist-select">
+                <SelectValue>
+                  {selectedPlaylist
+                    ? (readyPlaylists.find((p) => p._id === selectedPlaylist)
+                        ?.name ?? 'Choose a playlist...')
+                    : 'Choose a playlist...'}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {readyPlaylists.map((p) => (
+                  <SelectItem key={p._id} value={p._id}>
+                    {p.name} ({p.readyTracks} playable tracks)
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </fieldset>
 
         {/* Mode Selection */}
@@ -376,7 +404,7 @@ function CreateGameSection() {
 
         <Button
           onClick={handleCreate}
-          disabled={creating || !selectedPlaylist}
+          disabled={creating || !selectedPlaylist || readyPlaylists.length === 0}
           className="w-full"
         >
           {creating ? 'Creating...' : 'Create Game'}

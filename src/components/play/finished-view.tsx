@@ -65,7 +65,7 @@ export function FinishedView({ game }: FinishedViewProps) {
                         title={card.title}
                         releaseYear={card.releaseYear}
                         artistName={card.artistNames[0]}
-                        albumImageUrl={card.albumImageUrl}
+                        imageUrl={card.imageUrl}
                       />
                     ))}
                   </div>

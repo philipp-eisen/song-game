@@ -1,6 +1,7 @@
 import {
   CheckCircleIcon,
   SealQuestionIcon,
+  SpotifyLogo,
   XCircleIcon,
 } from '@phosphor-icons/react'
 import { AnimatePresence, motion } from 'motion/react'
@@ -18,7 +19,8 @@ interface RoundTimelineCardProps {
     title: string
     releaseYear: number
     artistName?: string
-    albumImageUrl?: string | null
+    imageUrl?: string | null
+    spotifyTrackId?: string | null
   }
   /** Called when the wrong animation completes and the card should be removed */
   onWrongAnimationComplete?: () => void
@@ -133,7 +135,8 @@ interface RevealedCardFaceProps {
     title: string
     releaseYear: number
     artistName?: string
-    albumImageUrl?: string | null
+    imageUrl?: string | null
+    spotifyTrackId?: string | null
   }
   isCorrect?: boolean
   isRevealed: boolean
@@ -144,6 +147,10 @@ function RevealedCardFace({
   isCorrect,
   isRevealed,
 }: RevealedCardFaceProps) {
+  const spotifyUrl = cardData?.spotifyTrackId
+    ? `https://open.spotify.com/track/${cardData.spotifyTrackId}`
+    : null
+
   return (
     <Card
       size="sm"
@@ -158,15 +165,15 @@ function RevealedCardFace({
       )}
     >
       <CardContent className="flex flex-col items-center gap-0 p-0">
-        {cardData?.albumImageUrl && (
+        {cardData?.imageUrl && (
           <img
-            src={cardData.albumImageUrl}
+            src={cardData.imageUrl}
             alt=""
             className="mb-1 h-12 w-12 shrink-0 rounded object-cover"
           />
         )}
         <p
-          className="line-clamp-4 h-14 w-full text-xs font-medium leading-[0.875rem]"
+          className="line-clamp-3 h-10 w-full text-xs font-medium leading-[0.875rem]"
           title={cardData?.title}
         >
           {cardData?.title ?? 'Unknown'}
@@ -179,9 +186,23 @@ function RevealedCardFace({
             {cardData.artistName}
           </p>
         )}
-        <p className="mt-auto text-sm font-bold text-primary">
+        <p className="text-sm font-bold text-primary">
           {cardData?.releaseYear ?? '????'}
         </p>
+
+        {/* Open in Spotify link */}
+        {spotifyUrl && (
+          <a
+            href={spotifyUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground hover:text-spotify"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <SpotifyLogo weight="fill" className="size-3" />
+            Open
+          </a>
+        )}
       </CardContent>
 
       {/* Result badge overlay */}

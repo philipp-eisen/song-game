@@ -8,7 +8,7 @@ import type { Id } from '../../convex/_generated/dataModel'
 
 export const listMyPlaylistsQuery = () => convexQuery(api.playlists.listMine, {})
 
-export const getPlaylistQuery = (playlistId: Id<'spotifyPlaylists'>) =>
+export const getPlaylistQuery = (playlistId: Id<'playlists'>) =>
   convexQuery(api.playlists.get, { playlistId })
 
 // ===========================================

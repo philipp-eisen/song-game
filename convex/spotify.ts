@@ -153,72 +153,6 @@ async function fetchAllPlaylistTracks(
 }
 
 // ===========================================
-// Public action: Get Spotify Access Token for Playback
-// ===========================================
-
-/**
- * Get a valid Spotify access token for the current user.
- * Refreshes the token if expired.
- * Used by the client for Web Playback SDK.
- */
-export const getAccessToken = action({
-  args: {},
-  returns: v.union(
-    v.object({
-      accessToken: v.string(),
-      expiresAt: v.number(),
-    }),
-    v.null(),
-  ),
-  handler: async (
-    ctx,
-  ): Promise<{ accessToken: string; expiresAt: number } | null> => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) {
-      return null
-    }
-
-    const userId = identity.subject
-
-    // Get the Spotify account tokens
-    const account = await ctx.runQuery(
-      internal.spotifyInternal.getSpotifyAccount,
-      { userId },
-    )
-
-    if (!account || !account.accessToken || !account.refreshToken) {
-      return null
-    }
-
-    let accessToken = account.accessToken
-    let expiresAt = account.accessTokenExpiresAt ?? 0
-
-    // Check if token is expired or expiring soon and refresh if needed
-    if (tokenNeedsRefresh(expiresAt)) {
-      console.log('Spotify token expired or expiring soon, refreshing...')
-      const newTokens = await refreshSpotifyToken(account.refreshToken)
-
-      const now = Date.now()
-      accessToken = newTokens.access_token
-      expiresAt = now + newTokens.expires_in * 1000
-
-      // Update stored tokens
-      await ctx.runMutation(internal.spotifyInternal.updateSpotifyTokens, {
-        userId,
-        accessToken: newTokens.access_token,
-        accessTokenExpiresAt: expiresAt,
-        refreshToken: newTokens.refresh_token,
-      })
-    }
-
-    return {
-      accessToken,
-      expiresAt,
-    }
-  },
-})
-
-// ===========================================
 // Public action: Import Spotify Playlist
 // ===========================================
 
@@ -227,13 +161,13 @@ export const importSpotifyPlaylist = action({
     playlistUrlOrId: v.string(),
   },
   returns: v.object({
-    playlistId: v.id('spotifyPlaylists'),
+    playlistId: v.id('playlists'),
     trackCount: v.number(),
   }),
   handler: async (
     ctx,
     args,
-  ): Promise<{ playlistId: Id<'spotifyPlaylists'>; trackCount: number }> => {
+  ): Promise<{ playlistId: Id<'playlists'>; trackCount: number }> => {
     // Get the current user
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) {
@@ -292,24 +226,9 @@ export const importSpotifyPlaylist = action({
       (item) => 'id' in item.track && item.track.id && 'album' in item.track,
     )
 
-    // Upsert the playlist
-    const playlistId = await ctx.runMutation(
-      internal.spotifyInternal.upsertPlaylist,
-      {
-        ownerUserId: userId,
-        spotifyPlaylistId: playlistMeta.id,
-        name: playlistMeta.name,
-        description: playlistMeta.description || undefined,
-        imageUrl: playlistMeta.images[0]?.url,
-        trackCount: validTracks.length,
-        snapshotId: playlistMeta.snapshot_id,
-      },
-    )
-
-    // Upsert each song and create playlist mappings
-    for (let i = 0; i < validTracks.length; i++) {
-      // We've already filtered to only include tracks with albums
-      const track = validTracks[i].track as {
+    // Build track data for insertion
+    const tracks = validTracks.map((item, index) => {
+      const track = item.track as {
         id: string
         name: string
         artists: Array<{ name: string }>
@@ -323,38 +242,35 @@ export const importSpotifyPlaylist = action({
         external_ids?: { isrc?: string }
       }
 
-      const songId = await ctx.runMutation(
-        internal.spotifyInternal.upsertSong,
-        {
-          spotifyTrackId: track.id,
-          title: track.name,
-          artistNames: track.artists.map((a) => a.name),
-          releaseYear: extractReleaseYear(track.album.release_date),
-          previewUrl: track.preview_url ?? undefined,
-          spotifyUri: track.uri,
-          albumName: track.album.name,
-          albumImageUrl: track.album.images[0]?.url,
-          isrc: track.external_ids?.isrc, // ISRC for Apple Music matching
-        },
-      )
+      return {
+        position: index,
+        title: track.name,
+        artistNames: track.artists.map((a) => a.name),
+        releaseYear: extractReleaseYear(track.album.release_date),
+        imageUrl: track.album.images[0]?.url,
+        spotifyTrackId: track.id,
+        isrc: track.external_ids?.isrc,
+      }
+    })
 
-      await ctx.runMutation(internal.spotifyInternal.addPlaylistSong, {
-        playlistId,
-        songId,
-        position: i,
-      })
-    }
-
-    // Mark playlist for Apple Music resolution
-    await ctx.runMutation(
-      internal.spotifyInternal.updatePlaylistResolutionStatus,
+    // Upsert the playlist and replace its tracks
+    const playlistId = await ctx.runMutation(
+      internal.spotifyInternal.upsertPlaylistWithTracks,
       {
-        playlistId,
-        status: 'pending',
-        matchedTracks: 0,
-        unmatchedTracks: 0,
+        ownerUserId: userId,
+        source: 'spotify',
+        sourcePlaylistId: playlistMeta.id,
+        name: playlistMeta.name,
+        description: playlistMeta.description || undefined,
+        imageUrl: playlistMeta.images[0]?.url,
+        tracks,
       },
     )
+
+    // Schedule background Apple Music matching
+    await ctx.scheduler.runAfter(0, internal.playlistImport.processPlaylistBatch, {
+      playlistId,
+    })
 
     return {
       playlistId,

@@ -1,36 +1,27 @@
 'use node'
 
 import { v } from 'convex/values'
-import { action, internalAction } from './_generated/server'
+import { internalAction } from './_generated/server'
 import { internal } from './_generated/api'
 
 // ===========================================
-// Types
+// Constants
 // ===========================================
 
-interface PlaylistSong {
-  songId: string
-  position: number
-  spotifyTrackId?: string
-  appleMusicId?: string
-  isrc?: string
-  title: string
-  artistNames: Array<string>
-  releaseYear: number
-  resolvedFrom?: 'spotify' | 'appleMusic' | 'spotifyToApple'
-}
+const BATCH_SIZE = 10 // Process 10 tracks at a time
+const RATE_LIMIT_DELAY_MS = 100 // Delay between Apple Music API calls
 
 // ===========================================
-// Internal Actions for Apple Music Resolution
+// Apple Music Resolution Action
 // ===========================================
 
 /**
- * Resolve a single song to Apple Music
+ * Resolve a single track to Apple Music
  * Attempts ISRC lookup first, then falls back to text search
  */
-export const resolveSongToAppleMusic = internalAction({
+export const resolveTrackToAppleMusic = internalAction({
   args: {
-    songId: v.id('songs'),
+    trackId: v.id('playlistTracks'),
     isrc: v.optional(v.string()),
     title: v.string(),
     artist: v.string(),
@@ -152,7 +143,6 @@ export const resolveSongToAppleMusic = internalAction({
       }
 
       // If no exact match, take the first result as a best guess
-      // (Could be made stricter if needed)
       const firstResult = searchResults[0]
       return {
         matched: true,
@@ -172,6 +162,119 @@ export const resolveSongToAppleMusic = internalAction({
     }
   },
 })
+
+// ===========================================
+// Batch Processing Action
+// ===========================================
+
+/**
+ * Process a batch of pending tracks for a playlist.
+ * Re-schedules itself if there are more pending tracks.
+ */
+export const processPlaylistBatch = internalAction({
+  args: {
+    playlistId: v.id('playlists'),
+    storefront: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const storefront = args.storefront ?? 'us'
+
+    // Get a batch of pending tracks
+    const pendingTracks = await ctx.runQuery(
+      internal.playlistImportInternal.getPendingTracks,
+      {
+        playlistId: args.playlistId,
+        limit: BATCH_SIZE,
+      },
+    )
+
+    if (pendingTracks.length === 0) {
+      // No more pending tracks, update final status
+      await ctx.runMutation(
+        internal.playlistImportInternal.updatePlaylistCounts,
+        {
+          playlistId: args.playlistId,
+        },
+      )
+      console.log(`[Processing] Playlist ${args.playlistId} complete`)
+      return null
+    }
+
+    console.log(
+      `[Processing] Processing ${pendingTracks.length} tracks for playlist ${args.playlistId}`,
+    )
+
+    // Process each track in the batch
+    for (const track of pendingTracks) {
+      const result = await ctx.runAction(
+        internal.playlistImport.resolveTrackToAppleMusic,
+        {
+          trackId: track._id,
+          isrc: track.isrc,
+          title: track.title,
+          artist: track.artistNames[0] ?? 'Unknown Artist',
+          storefront,
+        },
+      )
+
+      if (result.matched) {
+        await ctx.runMutation(internal.playlistImportInternal.markTrackReady, {
+          trackId: track._id,
+          appleMusicId: result.appleMusicId,
+          title: result.title,
+          artistNames: [result.artistName],
+          releaseYear: result.releaseYear,
+          previewUrl: result.previewUrl,
+          imageUrl: result.artworkUrl,
+          isrc: result.isrc,
+        })
+      } else {
+        await ctx.runMutation(
+          internal.playlistImportInternal.markTrackUnmatched,
+          {
+            trackId: track._id,
+            reason: result.reason,
+          },
+        )
+        console.warn(
+          `[Processing] Failed to match: "${track.title}" by ${track.artistNames.join(', ')} - ${result.reason}`,
+        )
+      }
+
+      // Rate limit delay
+      await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_DELAY_MS))
+    }
+
+    // Update counts after processing this batch
+    const counts = await ctx.runMutation(
+      internal.playlistImportInternal.updatePlaylistCounts,
+      {
+        playlistId: args.playlistId,
+      },
+    )
+
+    // If there are more pending tracks, schedule the next batch
+    if (counts.pendingCount > 0) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.playlistImport.processPlaylistBatch,
+        {
+          playlistId: args.playlistId,
+          storefront,
+        },
+      )
+    } else {
+      console.log(`[Processing] Playlist ${args.playlistId} complete`)
+    }
+
+    return null
+  },
+})
+
+// ===========================================
+// Helper Functions
+// ===========================================
 
 /**
  * Normalize a string for comparison
@@ -202,184 +305,3 @@ function stringsSimilar(a: string, b: string): boolean {
 
   return matchRatio >= 0.8
 }
-
-// ===========================================
-// Public Actions
-// ===========================================
-
-/**
- * Resolve all songs in a playlist to Apple Music
- * This should be called after importing a Spotify playlist
- */
-export const resolvePlaylistToAppleMusic = action({
-  args: {
-    playlistId: v.id('spotifyPlaylists'),
-    storefront: v.optional(v.string()),
-  },
-  returns: v.object({
-    totalTracks: v.number(),
-    matchedTracks: v.number(),
-    unmatchedTracks: v.number(),
-  }),
-  handler: async (
-    ctx,
-    args,
-  ): Promise<{
-    totalTracks: number
-    matchedTracks: number
-    unmatchedTracks: number
-  }> => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) {
-      throw new Error('Not authenticated')
-    }
-
-    const storefront = args.storefront ?? 'us'
-
-    // Mark playlist as in progress
-    await ctx.runMutation(
-      internal.spotifyInternal.updatePlaylistResolutionStatus,
-      {
-        playlistId: args.playlistId,
-        status: 'inProgress',
-      },
-    )
-
-    // Get all songs in the playlist
-    const songs = await ctx.runQuery(
-      internal.spotifyInternal.getPlaylistSongs,
-      {
-        playlistId: args.playlistId,
-      },
-    )
-
-    let matchedCount = 0
-    let unmatchedCount = 0
-
-    // Process each song
-    for (const song of songs) {
-      // Skip if already resolved to Apple Music
-      if (
-        song.resolvedFrom === 'spotifyToApple' ||
-        song.resolvedFrom === 'appleMusic'
-      ) {
-        matchedCount++
-        continue
-      }
-
-      // Attempt to resolve to Apple Music
-      const result = await ctx.runAction(
-        internal.playlistImport.resolveSongToAppleMusic,
-        {
-          songId: song.songId,
-          isrc: song.isrc,
-          title: song.title,
-          artist: song.artistNames[0] ?? 'Unknown Artist',
-          storefront,
-        },
-      )
-
-      if (result.matched) {
-        // Update the song with Apple Music data
-        await ctx.runMutation(
-          internal.spotifyInternal.updateSongWithAppleMusic,
-          {
-            songId: song.songId,
-            appleMusicId: result.appleMusicId,
-            title: result.title,
-            artistName: result.artistName,
-            albumName: result.albumName,
-            releaseYear: result.releaseYear,
-            releaseDate: result.releaseDate,
-            previewUrl: result.previewUrl,
-            artworkUrl: result.artworkUrl,
-            isrc: result.isrc,
-          },
-        )
-        matchedCount++
-      } else {
-        console.warn(
-          `[Resolution] Failed to match: "${song.title}" by ${song.artistNames.join(', ')} - ${result.reason}`,
-        )
-        unmatchedCount++
-      }
-
-      // Add a small delay to avoid rate limiting
-      await new Promise((resolve) => setTimeout(resolve, 100))
-    }
-
-    // Mark playlist as completed
-    await ctx.runMutation(
-      internal.spotifyInternal.updatePlaylistResolutionStatus,
-      {
-        playlistId: args.playlistId,
-        status: 'completed',
-        matchedTracks: matchedCount,
-        unmatchedTracks: unmatchedCount,
-      },
-    )
-
-    return {
-      totalTracks: songs.length,
-      matchedTracks: matchedCount,
-      unmatchedTracks: unmatchedCount,
-    }
-  },
-})
-
-// Return type for getPlaylistResolutionStatus
-interface ResolutionStatusResult {
-  status: 'pending' | 'inProgress' | 'completed' | 'failed'
-  matchedTracks: number
-  unmatchedTracks: number
-  totalTracks: number
-}
-
-/**
- * Get the resolution status of a playlist
- */
-export const getPlaylistResolutionStatus = action({
-  args: {
-    playlistId: v.id('spotifyPlaylists'),
-  },
-  returns: v.union(
-    v.object({
-      status: v.union(
-        v.literal('pending'),
-        v.literal('inProgress'),
-        v.literal('completed'),
-        v.literal('failed'),
-      ),
-      matchedTracks: v.number(),
-      unmatchedTracks: v.number(),
-      totalTracks: v.number(),
-    }),
-    v.null(),
-  ),
-  handler: async (ctx, args): Promise<ResolutionStatusResult | null> => {
-    const identity = await ctx.auth.getUserIdentity()
-    if (!identity) {
-      throw new Error('Not authenticated')
-    }
-
-    // This is a simplified version - in a real app, you'd query the playlist directly
-    const songs: Array<PlaylistSong> = await ctx.runQuery(
-      internal.spotifyInternal.getPlaylistSongs,
-      {
-        playlistId: args.playlistId,
-      },
-    )
-
-    const matchedTracks = songs.filter(
-      (s) =>
-        s.resolvedFrom === 'spotifyToApple' || s.resolvedFrom === 'appleMusic',
-    ).length
-
-    return {
-      status: 'pending' as const,
-      matchedTracks,
-      unmatchedTracks: songs.length - matchedTracks,
-      totalTracks: songs.length,
-    }
-  },
-})

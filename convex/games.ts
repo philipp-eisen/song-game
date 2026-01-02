@@ -60,7 +60,7 @@ function shuffleArray<T>(array: Array<T>): Array<T> {
  */
 export const create = mutation({
   args: {
-    playlistId: v.id('spotifyPlaylists'),
+    playlistId: v.id('playlists'),
     mode: gameModeValidator,
     // For hostOnly mode: array of player names (host is always first)
     playerNames: v.optional(v.array(v.string())),
@@ -84,7 +84,7 @@ export const create = mutation({
     const userName = identity.name ?? 'Host'
 
     // Verify the playlist exists and belongs to the user
-    const playlist = await ctx.db.get('spotifyPlaylists', args.playlistId)
+    const playlist = await ctx.db.get("playlists", args.playlistId)
     if (!playlist || playlist.ownerUserId !== userId) {
       throw new Error('Playlist not found or not owned by you')
     }
@@ -170,7 +170,7 @@ export const addLocalPlayer = mutation({
       throw new Error('Not authenticated')
     }
 
-    const game = await ctx.db.get('games', args.gameId)
+    const game = await ctx.db.get("games", args.gameId)
     if (!game) {
       throw new Error('Game not found')
     }
@@ -220,12 +220,12 @@ export const removeLocalPlayer = mutation({
       throw new Error('Not authenticated')
     }
 
-    const player = await ctx.db.get('gamePlayers', args.playerId)
+    const player = await ctx.db.get("gamePlayers", args.playerId)
     if (!player) {
       throw new Error('Player not found')
     }
 
-    const game = await ctx.db.get('games', player.gameId)
+    const game = await ctx.db.get("games", player.gameId)
     if (!game) {
       throw new Error('Game not found')
     }
@@ -247,7 +247,7 @@ export const removeLocalPlayer = mutation({
     }
 
     // Delete the player
-    await ctx.db.delete('gamePlayers', args.playerId)
+    await ctx.db.delete("gamePlayers", args.playerId)
 
     // Re-index remaining players
     const remainingPlayers = await ctx.db
@@ -261,7 +261,7 @@ export const removeLocalPlayer = mutation({
     // Update seat indices
     for (let i = 0; i < remainingPlayers.length; i++) {
       if (remainingPlayers[i].seatIndex !== i) {
-        await ctx.db.patch('gamePlayers', remainingPlayers[i]._id, {
+        await ctx.db.patch("gamePlayers", remainingPlayers[i]._id, {
           seatIndex: i,
         })
       }
@@ -359,7 +359,7 @@ export const leave = mutation({
       throw new Error('Not authenticated')
     }
 
-    const game = await ctx.db.get('games', args.gameId)
+    const game = await ctx.db.get("games", args.gameId)
     if (!game) {
       throw new Error('Game not found')
     }
@@ -385,7 +385,7 @@ export const leave = mutation({
     }
 
     // Delete the player
-    await ctx.db.delete('gamePlayers', player._id)
+    await ctx.db.delete("gamePlayers", player._id)
 
     // Re-index remaining players
     const remainingPlayers = await ctx.db
@@ -397,7 +397,7 @@ export const leave = mutation({
 
     for (let i = 0; i < remainingPlayers.length; i++) {
       if (remainingPlayers[i].seatIndex !== i) {
-        await ctx.db.patch('gamePlayers', remainingPlayers[i]._id, {
+        await ctx.db.patch("gamePlayers", remainingPlayers[i]._id, {
           seatIndex: i,
         })
       }
@@ -421,7 +421,7 @@ export const deleteGame = mutation({
       throw new Error('Not authenticated')
     }
 
-    const game = await ctx.db.get('games', args.gameId)
+    const game = await ctx.db.get("games", args.gameId)
     if (!game) {
       throw new Error('Game not found')
     }
@@ -441,11 +441,11 @@ export const deleteGame = mutation({
       .collect()
 
     for (const player of players) {
-      await ctx.db.delete('gamePlayers', player._id)
+      await ctx.db.delete("gamePlayers", player._id)
     }
 
     // Delete the game
-    await ctx.db.delete('games', args.gameId)
+    await ctx.db.delete("games", args.gameId)
 
     return null
   },
@@ -457,7 +457,7 @@ export const deleteGame = mutation({
 
 /**
  * Start the game (host only)
- * - Materializes gameCards from playlist
+ * - Materializes gameCards from playlist (ready tracks only)
  * - Shuffles the deck
  * - Deals 1 starting card to each player's timeline
  */
@@ -472,7 +472,7 @@ export const start = mutation({
       throw new Error('Not authenticated')
     }
 
-    const game = await ctx.db.get('games', args.gameId)
+    const game = await ctx.db.get("games", args.gameId)
     if (!game) {
       throw new Error('Game not found')
     }
@@ -483,6 +483,18 @@ export const start = mutation({
 
     if (game.phase !== 'lobby') {
       throw new Error('Game has already started')
+    }
+
+    // Verify playlist is ready
+    const playlist = await ctx.db.get("playlists", game.playlistId)
+    if (!playlist) {
+      throw new Error('Playlist not found')
+    }
+
+    if (playlist.status !== 'ready') {
+      throw new Error(
+        'Playlist is still processing. Please wait until all tracks are matched.',
+      )
     }
 
     // Get all players
@@ -498,37 +510,44 @@ export const start = mutation({
     // Sort by seat index
     players.sort((a, b) => a.seatIndex - b.seatIndex)
 
-    // Get playlist songs
-    const playlistSongs = await ctx.db
-      .query('playlistSongs')
-      .withIndex('by_playlistId', (q) => q.eq('playlistId', game.playlistId))
+    // Get ready tracks from playlist
+    const readyTracks = await ctx.db
+      .query('playlistTracks')
+      .withIndex('by_playlistId_and_status', (q) =>
+        q.eq('playlistId', game.playlistId).eq('status', 'ready'),
+      )
       .collect()
 
-    if (playlistSongs.length < players.length + 10) {
+    if (readyTracks.length < players.length + 10) {
       throw new Error(
-        `Playlist needs at least ${players.length + 10} songs for a good game`,
+        `Playlist needs at least ${players.length + 10} ready tracks for a good game (has ${readyTracks.length})`,
       )
     }
 
-    // Fetch song details to get release years
-    const songDetails: Array<{ songId: Id<'songs'>; releaseYear: number }> = []
-    for (const ps of playlistSongs) {
-      const song = await ctx.db.get('songs', ps.songId)
-      if (song) {
-        songDetails.push({ songId: song._id, releaseYear: song.releaseYear })
-      }
+    // Build track data with release years (filter out tracks without releaseYear)
+    const trackData = readyTracks
+      .filter((t) => t.releaseYear !== undefined)
+      .map((t) => ({
+        trackId: t._id,
+        releaseYear: t.releaseYear!,
+      }))
+
+    if (trackData.length < players.length + 10) {
+      throw new Error(
+        `Not enough tracks with release years for a good game`,
+      )
     }
 
-    // Shuffle the songs
-    const shuffledSongs = shuffleArray(songDetails)
+    // Shuffle the tracks
+    const shuffledTracks = shuffleArray(trackData)
 
     // Create gameCards in shuffled order
     const gameCardIds: Array<Id<'gameCards'>> = []
-    for (let i = 0; i < shuffledSongs.length; i++) {
+    for (let i = 0; i < shuffledTracks.length; i++) {
       const cardId = await ctx.db.insert('gameCards', {
         gameId: args.gameId,
-        songId: shuffledSongs[i].songId,
-        releaseYear: shuffledSongs[i].releaseYear,
+        trackId: shuffledTracks[i].trackId,
+        releaseYear: shuffledTracks[i].releaseYear,
         state: 'deck',
         deckOrder: i,
       })
@@ -540,7 +559,7 @@ export const start = mutation({
       const cardId = gameCardIds[i]
 
       // Update card state
-      await ctx.db.patch('gameCards', cardId, {
+      await ctx.db.patch("gameCards", cardId, {
         state: 'timeline',
         ownerPlayerId: players[i]._id,
         deckOrder: undefined,
@@ -557,13 +576,13 @@ export const start = mutation({
 
     // Update remaining deck cards' deckOrder (they shift down by players.length)
     for (let i = players.length; i < gameCardIds.length; i++) {
-      await ctx.db.patch('gameCards', gameCardIds[i], {
+      await ctx.db.patch("gameCards", gameCardIds[i], {
         deckOrder: i - players.length,
       })
     }
 
     // Update game state
-    await ctx.db.patch('games', args.gameId, {
+    await ctx.db.patch("games", args.gameId, {
       phase: 'awaitingStart',
       currentTurnSeatIndex: 0,
       startedAt: Date.now(),
@@ -589,7 +608,7 @@ export const get = query({
       isCurrentUserHost: v.boolean(),
       joinCode: v.string(),
       mode: gameModeValidator,
-      playlistId: v.id('spotifyPlaylists'),
+      playlistId: v.id('playlists'),
       playlistName: v.optional(v.string()),
       useTokens: v.boolean(),
       startingTokens: v.number(),
@@ -630,7 +649,7 @@ export const get = query({
               title: v.string(),
               artistNames: v.array(v.string()),
               releaseYear: v.number(),
-              albumImageUrl: v.optional(v.string()),
+              imageUrl: v.optional(v.string()),
             }),
           ),
         }),
@@ -645,13 +664,13 @@ export const get = query({
       return null
     }
 
-    const game = await ctx.db.get('games', args.gameId)
+    const game = await ctx.db.get("games", args.gameId)
     if (!game) {
       return null
     }
 
     // Get playlist name
-    const playlist = await ctx.db.get('spotifyPlaylists', game.playlistId)
+    const playlist = await ctx.db.get("playlists", game.playlistId)
 
     // Get all players
     const players = await ctx.db
@@ -692,7 +711,7 @@ export const get = query({
             title: string
             artistNames: Array<string>
             releaseYear: number
-            albumImageUrl?: string
+            imageUrl?: string
           }
         }
       | undefined = undefined
@@ -709,16 +728,16 @@ export const get = query({
 
       // Only show card details after reveal
       if (game.phase === 'revealed') {
-        const card = await ctx.db.get('gameCards', game.currentRound.cardId)
+        const card = await ctx.db.get("gameCards", game.currentRound.cardId)
         if (card) {
-          const song = await ctx.db.get('songs', card.songId)
-          if (song) {
+          const track = await ctx.db.get("playlistTracks", card.trackId)
+          if (track) {
             currentRound.card = {
               _id: card._id,
-              title: song.title,
-              artistNames: song.artistNames,
-              releaseYear: song.releaseYear,
-              albumImageUrl: song.albumImageUrl,
+              title: track.title,
+              artistNames: track.artistNames,
+              releaseYear: track.releaseYear!,
+              imageUrl: track.imageUrl,
             }
           }
         }
@@ -810,7 +829,7 @@ export const listMine = query({
 
     // Add hosted games
     for (const game of hostedGames) {
-      const playlist = await ctx.db.get('spotifyPlaylists', game.playlistId)
+      const playlist = await ctx.db.get("playlists", game.playlistId)
       const players = await ctx.db
         .query('gamePlayers')
         .withIndex('by_gameId', (q) => q.eq('gameId', game._id))
@@ -832,10 +851,10 @@ export const listMine = query({
 
     // Add joined games (where not host)
     for (const gameId of joinedGameIds) {
-      const game = await ctx.db.get('games', gameId)
+      const game = await ctx.db.get("games", gameId)
       if (!game) continue
 
-      const playlist = await ctx.db.get('spotifyPlaylists', game.playlistId)
+      const playlist = await ctx.db.get("playlists", game.playlistId)
       const players = await ctx.db
         .query('gamePlayers')
         .withIndex('by_gameId', (q) => q.eq('gameId', game._id))

@@ -44,96 +44,82 @@ const currentRoundValidator = v.object({
   tokenClaimers: v.array(v.id('gamePlayers')), // Players who claimed a guess token this round
 })
 
+// Playlist source provider
+const playlistSourceValidator = v.union(
+  v.literal('spotify'),
+  v.literal('appleMusic'),
+)
+
+// Playlist processing status
+const playlistStatusValidator = v.union(
+  v.literal('importing'), // Initial import in progress
+  v.literal('processing'), // Matching tracks to Apple Music
+  v.literal('ready'), // All tracks processed, ready for games
+  v.literal('failed'), // Import or processing failed
+)
+
+// Track processing status
+const trackStatusValidator = v.union(
+  v.literal('pending'), // Imported from Spotify, needs Apple match
+  v.literal('ready'), // Matched to Apple Music, playable
+  v.literal('unmatched'), // Couldn't be matched, excluded from games
+)
+
 export default defineSchema({
   // ============================================
-  // Spotify Playlist Import Tables
+  // Playlist Tables (provider-agnostic)
   // ============================================
 
-  // Imported playlists owned by authenticated users
-  // Supports both Spotify and Apple Music sources
-  spotifyPlaylists: defineTable({
+  // User-owned playlists, imported from any supported provider
+  playlists: defineTable({
     ownerUserId: v.string(), // Better Auth user ID
-    spotifyPlaylistId: v.string(), // Spotify's playlist ID (kept as primary key for now)
+    source: playlistSourceValidator, // Where the playlist came from
+    sourcePlaylistId: v.string(), // ID from the source provider
     name: v.string(),
     description: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
-    trackCount: v.number(),
-    snapshotId: v.string(), // Spotify's version identifier
-    importedAt: v.number(), // Timestamp
+    importedAt: v.number(),
 
-    // Source provider tracking
-    sourceProvider: v.optional(
-      v.union(v.literal('spotify'), v.literal('appleMusic')),
-    ), // Defaults to 'spotify' for backwards compat
-
-    // Apple Music resolution stats
-    matchedTracks: v.optional(v.number()), // Successfully resolved to Apple Music
-    unmatchedTracks: v.optional(v.number()), // Couldn't find on Apple Music
-    resolutionStatus: v.optional(
-      v.union(
-        v.literal('pending'), // Not yet resolved
-        v.literal('inProgress'), // Currently resolving
-        v.literal('completed'), // All tracks processed
-        v.literal('failed'), // Resolution failed
-      ),
-    ),
-    lastResolvedAt: v.optional(v.number()), // Timestamp of last resolution attempt
+    // Processing status
+    status: playlistStatusValidator,
+    totalTracks: v.number(), // Total tracks imported
+    readyTracks: v.number(), // Tracks ready to play
+    unmatchedTracks: v.number(), // Tracks that couldn't be matched
   })
     .index('by_ownerUserId', ['ownerUserId'])
-    .index('by_ownerUserId_and_spotifyPlaylistId', [
+    .index('by_ownerUserId_and_sourcePlaylistId', [
       'ownerUserId',
-      'spotifyPlaylistId',
+      'sourcePlaylistId',
     ]),
 
-  // Unique tracks (deduplicated across playlists)
-  // Apple Music is the source of truth for metadata when resolved
-  songs: defineTable({
-    // Core identity - at least one of these should be set
-    spotifyTrackId: v.optional(v.string()), // Original Spotify ID (if imported from Spotify)
-    appleMusicId: v.optional(v.string()), // Apple Music catalog ID (source of truth)
+  // Tracks belonging to a playlist (one playlist owns each track)
+  playlistTracks: defineTable({
+    playlistId: v.id('playlists'),
+    position: v.number(), // Order in the playlist
 
-    // Cross-provider matching
-    isrc: v.optional(v.string()), // International Standard Recording Code
+    // Processing status
+    status: trackStatusValidator,
 
-    // Track metadata (from Apple Music when resolved)
+    // Core metadata (always set on import)
     title: v.string(),
     artistNames: v.array(v.string()),
-    releaseYear: v.number(),
-    releaseDate: v.optional(v.string()), // YYYY-MM-DD from Apple Music
-    albumName: v.optional(v.string()),
 
-    // Playback
-    previewUrl: v.optional(v.string()), // Apple Music preview URL (30s)
-    spotifyUri: v.optional(v.string()), // spotify:track:xxx (for optional Spotify playback)
+    // Set when status is 'ready'
+    releaseYear: v.optional(v.number()),
+    previewUrl: v.optional(v.string()), // Apple Music 30s preview
+    imageUrl: v.optional(v.string()), // Artwork URL
 
-    // Artwork
-    artworkUrl: v.optional(v.string()), // Apple Music artwork URL
+    // Provider IDs for matching and linking
+    appleMusicId: v.optional(v.string()), // Apple Music catalog ID
+    spotifyTrackId: v.optional(v.string()), // For "Open in Spotify" links
+    isrc: v.optional(v.string()), // International Standard Recording Code
 
-    // Legacy Spotify image (kept for backwards compatibility)
-    albumImageUrl: v.optional(v.string()),
-
-    // Provider tracking
-    resolvedFrom: v.optional(
-      v.union(
-        v.literal('spotify'), // Original Spotify import (not yet resolved)
-        v.literal('appleMusic'), // Direct Apple Music import
-        v.literal('spotifyToApple'), // Spotify import resolved to Apple Music
-      ),
-    ),
-  })
-    .index('by_spotifyTrackId', ['spotifyTrackId'])
-    .index('by_appleMusicId', ['appleMusicId'])
-    .index('by_isrc', ['isrc']),
-
-  // Many-to-many: playlist → songs with ordering
-  playlistSongs: defineTable({
-    playlistId: v.id('spotifyPlaylists'),
-    songId: v.id('songs'),
-    position: v.number(), // Order in the playlist
+    // Set when status is 'unmatched'
+    unmatchedReason: v.optional(v.string()),
   })
     .index('by_playlistId', ['playlistId'])
     .index('by_playlistId_and_position', ['playlistId', 'position'])
-    .index('by_playlistId_and_songId', ['playlistId', 'songId']),
+    .index('by_playlistId_and_status', ['playlistId', 'status']),
 
   // ============================================
   // Game Engine Tables
@@ -147,7 +133,7 @@ export default defineSchema({
     // Game configuration
     joinCode: v.string(), // 6-char code for joining
     mode: gameModeValidator,
-    playlistId: v.id('spotifyPlaylists'),
+    playlistId: v.id('playlists'),
 
     // Game options
     useTokens: v.boolean(), // Whether HITSTER tokens are enabled
@@ -184,10 +170,10 @@ export default defineSchema({
     .index('by_gameId_and_seatIndex', ['gameId', 'seatIndex'])
     .index('by_gameId_and_userId', ['gameId', 'userId']),
 
-  // Card instances for a game (materialized from playlist songs)
+  // Card instances for a game (materialized from playlist tracks)
   gameCards: defineTable({
     gameId: v.id('games'),
-    songId: v.id('songs'),
+    trackId: v.id('playlistTracks'), // Reference to the playlist track
     releaseYear: v.number(), // Denormalized for fast validation
     state: cardStateValidator,
     ownerPlayerId: v.optional(v.id('gamePlayers')), // Set when in timeline
