@@ -3,56 +3,13 @@
 import { v } from 'convex/values'
 import { action, internalAction } from './_generated/server'
 import { internal } from './_generated/api'
-
-// ===========================================
-// Types
-// ===========================================
-
-interface AppleMusicSong {
-  id: string
-  attributes: {
-    name: string
-    artistName: string
-    albumName: string
-    releaseDate: string
-    durationInMillis: number
-    isrc?: string
-    previews?: Array<{ url: string }>
-    artwork?: {
-      url: string
-      width: number
-      height: number
-    }
-  }
-}
-
-interface AppleMusicSearchResponse {
-  results?: {
-    songs?: {
-      data: Array<AppleMusicSong>
-    }
-  }
-}
-
-interface AppleMusicPlaylistResponse {
-  data?: Array<{
-    id: string
-    attributes: {
-      name: string
-      description?: { standard?: string }
-      artwork?: { url: string }
-    }
-    relationships?: {
-      tracks?: {
-        data: Array<AppleMusicSong>
-      }
-    }
-  }>
-}
-
-interface AppleMusicISRCResponse {
-  data?: Array<AppleMusicSong>
-}
+import type {
+  Artwork,
+  PlaylistRelationship,
+  SearchResponse,
+  Song,
+  SongRelationship,
+} from '../src/generated/apple-music'
 
 // ===========================================
 // Constants
@@ -157,7 +114,7 @@ function extractReleaseYear(releaseDate: string): number {
  * Get the artwork URL at a specific size
  */
 function getArtworkUrl(
-  artwork: { url: string; width: number; height: number } | undefined,
+  artwork: Artwork | undefined,
   size: number = 300,
 ): string | undefined {
   if (!artwork?.url) return undefined
@@ -196,23 +153,23 @@ export const searchByISRC = internalAction({
     const storefront = args.storefront ?? DEFAULT_STOREFRONT
 
     try {
-      const response = await appleMusicFetch<AppleMusicISRCResponse>(
+      const response = await appleMusicFetch<SongRelationship>(
         `/catalog/${storefront}/songs?filter[isrc]=${args.isrc}`,
       )
 
-      if (!response.data || response.data.length === 0) {
+      if (response.data.length === 0) {
         return null
       }
 
-      const song = response.data[0]
+      const song = response.data[0] as Song
       return {
         appleMusicId: song.id,
         title: song.attributes.name,
         artistName: song.attributes.artistName,
         albumName: song.attributes.albumName,
-        releaseDate: song.attributes.releaseDate,
-        releaseYear: extractReleaseYear(song.attributes.releaseDate),
-        previewUrl: song.attributes.previews?.[0]?.url,
+        releaseDate: song.attributes.releaseDate ?? '',
+        releaseYear: extractReleaseYear(song.attributes.releaseDate ?? ''),
+        previewUrl: song.attributes.previews[0]?.url,
         artworkUrl: getArtworkUrl(song.attributes.artwork),
         isrc: args.isrc,
         durationMs: song.attributes.durationInMillis,
@@ -253,20 +210,20 @@ export const searchCatalog = internalAction({
     const limit = args.limit ?? 10
 
     const encodedQuery = encodeURIComponent(args.query)
-    const response = await appleMusicFetch<AppleMusicSearchResponse>(
+    const response = await appleMusicFetch<SearchResponse>(
       `/catalog/${storefront}/search?term=${encodedQuery}&types=songs&limit=${limit}`,
     )
 
-    const songs = response.results?.songs?.data ?? []
+    const songs = (response.results.songs?.data ?? []) as Array<Song>
 
     return songs.map((song) => ({
       appleMusicId: song.id,
       title: song.attributes.name,
       artistName: song.attributes.artistName,
       albumName: song.attributes.albumName,
-      releaseDate: song.attributes.releaseDate,
-      releaseYear: extractReleaseYear(song.attributes.releaseDate),
-      previewUrl: song.attributes.previews?.[0]?.url,
+      releaseDate: song.attributes.releaseDate ?? '',
+      releaseYear: extractReleaseYear(song.attributes.releaseDate ?? ''),
+      previewUrl: song.attributes.previews[0]?.url,
       artworkUrl: getArtworkUrl(song.attributes.artwork),
       isrc: song.attributes.isrc,
       durationMs: song.attributes.durationInMillis,
@@ -309,34 +266,30 @@ export const getPlaylist = internalAction({
     const storefront = args.storefront ?? DEFAULT_STOREFRONT
 
     try {
-      const response = await appleMusicFetch<AppleMusicPlaylistResponse>(
+      const response = await appleMusicFetch<PlaylistRelationship>(
         `/catalog/${storefront}/playlists/${args.playlistId}?include=tracks`,
       )
 
-      if (!response.data || response.data.length === 0) {
+      if (response.data.length === 0) {
         return null
       }
 
       const playlist = response.data[0]
-      const tracks = playlist.relationships?.tracks?.data ?? []
+      const tracks = (playlist.relationships?.tracks?.data ?? []) as Array<Song>
 
       return {
         id: playlist.id,
-        name: playlist.attributes.name,
-        description: playlist.attributes.description?.standard,
-        artworkUrl: getArtworkUrl(
-          playlist.attributes.artwork as
-            | { url: string; width: number; height: number }
-            | undefined,
-        ),
+        name: playlist.attributes?.name ?? '',
+        description: playlist.attributes?.description?.standard,
+        artworkUrl: getArtworkUrl(playlist.attributes?.artwork),
         tracks: tracks.map((song) => ({
           appleMusicId: song.id,
           title: song.attributes.name,
           artistName: song.attributes.artistName,
           albumName: song.attributes.albumName,
-          releaseDate: song.attributes.releaseDate,
-          releaseYear: extractReleaseYear(song.attributes.releaseDate),
-          previewUrl: song.attributes.previews?.[0]?.url,
+          releaseDate: song.attributes.releaseDate ?? '',
+          releaseYear: extractReleaseYear(song.attributes.releaseDate ?? ''),
+          previewUrl: song.attributes.previews[0]?.url,
           artworkUrl: getArtworkUrl(song.attributes.artwork),
           isrc: song.attributes.isrc,
           durationMs: song.attributes.durationInMillis,
