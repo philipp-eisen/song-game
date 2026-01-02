@@ -145,18 +145,18 @@ function Calendar({
         Chevron: ({ className: chevronClassName, orientation, ...chevronProps }) => {
           if (orientation === "left") {
             return (
-              <CaretLeftIcon className={cn("size-4", chevronClassName)} {...chevronProps} />
+              <CaretLeftIcon weight="duotone" className={cn("size-4", chevronClassName)} {...chevronProps} />
             )
           }
 
           if (orientation === "right") {
             return (
-              <CaretRightIcon className={cn("size-4", chevronClassName)} {...chevronProps} />
+              <CaretRightIcon weight="duotone" className={cn("size-4", chevronClassName)} {...chevronProps} />
             )
           }
 
           return (
-            <CaretDownIcon className={cn("size-4", chevronClassName)} {...chevronProps} />
+            <CaretDownIcon weight="duotone" className={cn("size-4", chevronClassName)} {...chevronProps} />
           )
         },
         DayButton: CalendarDayButton,

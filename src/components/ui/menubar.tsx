@@ -116,7 +116,7 @@ function MenubarCheckboxItem({
     >
       <span className="left-2 size-4 [&_svg:not([class*='size-'])]:size-4 pointer-events-none absolute flex items-center justify-center">
         <MenuPrimitive.CheckboxItemIndicator>
-          <CheckIcon
+          <CheckIcon weight="duotone"
           />
         </MenuPrimitive.CheckboxItemIndicator>
       </span>
@@ -147,7 +147,7 @@ function MenubarRadioItem({
     >
       <span className="left-2 size-4 [&_svg:not([class*='size-'])]:size-4 pointer-events-none absolute flex items-center justify-center">
         <MenuPrimitive.RadioItemIndicator>
-          <CheckIcon
+          <CheckIcon weight="duotone"
           />
         </MenuPrimitive.RadioItemIndicator>
       </span>

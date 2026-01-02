@@ -199,7 +199,7 @@ function RevealedCardFace({
             className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground hover:text-spotify"
             onClick={(e) => e.stopPropagation()}
           >
-            <SpotifyLogoIcon weight="fill" className="size-3" />
+            <SpotifyLogoIcon weight="duotone" className="size-3" />
             Open
           </a>
         )}
@@ -217,9 +217,9 @@ function RevealedCardFace({
           transition={{ delay: 0.3, duration: 0.3, ease: 'backOut' }}
         >
           {isCorrect ? (
-            <CheckCircleIcon className="h-5 w-5 text-white" weight="fill" />
+            <CheckCircleIcon className="h-5 w-5 text-white" weight="duotone" />
           ) : (
-            <XCircleIcon className="h-5 w-5 text-white" weight="fill" />
+            <XCircleIcon className="h-5 w-5 text-white" weight="duotone" />
           )}
         </motion.div>
       )}

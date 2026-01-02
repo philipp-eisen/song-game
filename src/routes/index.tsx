@@ -170,7 +170,7 @@ function LoginCTA({ isGuest }: LoginCTAProps) {
           className="w-full max-w-xs bg-spotify text-spotify-foreground hover:bg-spotify/90"
           size="lg"
         >
-          <SpotifyLogoIcon weight="fill" className="mr-2 h-5 w-5" />
+          <SpotifyLogoIcon weight="duotone" className="mr-2 h-5 w-5" />
           Sign in with Spotify
         </Button>
         {!isGuest && (
@@ -291,7 +291,7 @@ function CreateGameSection() {
               </p>
               {processingPlaylists.length > 0 && (
                 <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                  <ArrowsClockwiseIcon className="size-4 animate-spin" />
+                  <ArrowsClockwiseIcon weight="duotone" className="size-4 animate-spin" />
                   {processingPlaylists.length} playlist
                   {processingPlaylists.length !== 1 && 's'} still processing...
                 </p>

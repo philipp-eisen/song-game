@@ -12,3 +12,14 @@ When importing icons from `@phosphor-icons/react`, always use the "Icon" suffix 
 - ❌ `SpotifyLogo` (deprecated - do not use)
 
 All icon imports from `@phosphor-icons/react` must end with "Icon" to maintain consistency across the codebase.
+
+## Icon Weight Convention
+
+All icons from `@phosphor-icons/react` must use `weight="duotone"` everywhere. This ensures visual consistency across the application.
+
+- ✅ `<SpotifyLogoIcon weight="duotone" className="..." />` (correct)
+- ❌ `<SpotifyLogoIcon weight="fill" className="..." />` (incorrect - do not use)
+- ❌ `<SpotifyLogoIcon weight="bold" className="..." />` (incorrect - do not use)
+- ❌ `<SpotifyLogoIcon className="..." />` (incorrect - weight prop is required)
+
+All icon components must include `weight="duotone"` as a prop to maintain consistency across the codebase.

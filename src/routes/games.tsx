@@ -132,7 +132,7 @@ function GamesPage() {
                             className="h-8 w-8 p-0"
                             disabled={deleting === game._id}
                           >
-                            <DotsThreeVerticalIcon weight="bold" className="h-4 w-4" />
+                            <DotsThreeVerticalIcon weight="duotone" className="h-4 w-4" />
                           </Button>
                         }
                       />

@@ -17,8 +17,8 @@ export function ThemeToggle() {
       <DropdownMenuTrigger
         render={
           <Button variant="ghost" size="icon">
-            <SunIcon className="size-4 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
-            <MoonIcon className="absolute size-4 scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
+            <SunIcon weight="duotone" className="size-4 scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
+            <MoonIcon weight="duotone" className="absolute size-4 scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
             <span className="sr-only">Toggle theme</span>
           </Button>
         }
@@ -29,15 +29,15 @@ export function ThemeToggle() {
           onValueChange={(value) => setTheme(value)}
         >
           <DropdownMenuRadioItem value="light">
-            <SunIcon className="mr-2 size-4" />
+            <SunIcon weight="duotone" className="mr-2 size-4" />
             Light
           </DropdownMenuRadioItem>
           <DropdownMenuRadioItem value="dark">
-            <MoonIcon className="mr-2 size-4" />
+            <MoonIcon weight="duotone" className="mr-2 size-4" />
             Dark
           </DropdownMenuRadioItem>
           <DropdownMenuRadioItem value="system">
-            <MonitorIcon className="mr-2 size-4" />
+            <MonitorIcon weight="duotone" className="mr-2 size-4" />
             System
           </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>

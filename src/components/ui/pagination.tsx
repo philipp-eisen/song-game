@@ -76,7 +76,7 @@ function PaginationPrevious({
       className={cn("pl-2!", className)}
       {...props}
     >
-      <CaretLeftIcon data-icon="inline-start" />
+      <CaretLeftIcon weight="duotone" data-icon="inline-start" />
       <span className="hidden sm:block">
         Previous
       </span>
@@ -96,7 +96,7 @@ function PaginationNext({
       {...props}
     >
       <span className="hidden sm:block">Next</span>
-      <CaretRightIcon data-icon="inline-end" />
+      <CaretRightIcon weight="duotone" data-icon="inline-end" />
     </PaginationLink>
   )
 }
@@ -115,7 +115,7 @@ function PaginationEllipsis({
       )}
       {...props}
     >
-      <DotsThreeIcon
+      <DotsThreeIcon weight="duotone"
       />
       <span className="sr-only">More pages</span>
     </span>

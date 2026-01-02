@@ -173,7 +173,7 @@ function UserMenu() {
                     </span>
                   )}
                 </article>
-                <CaretUpDownIcon className="ml-auto size-4" />
+                <CaretUpDownIcon weight="duotone" className="ml-auto size-4" />
               </SidebarMenuButton>
             }
           />

@@ -93,7 +93,7 @@ export function PreviewPlayer({
         )}
       >
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary">
-          <MusicNoteIcon className="h-4 w-4 text-muted-foreground" />
+          <MusicNoteIcon weight="duotone" className="h-4 w-4 text-muted-foreground" />
         </div>
         <span className="text-sm text-muted-foreground">
           No preview available
@@ -133,9 +133,9 @@ export function PreviewPlayer({
         {isLoading ? (
           <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
         ) : isPlaying ? (
-          <PauseIcon weight="fill" className="h-4 w-4" />
+          <PauseIcon weight="duotone" className="h-4 w-4" />
         ) : (
-          <PlayIcon weight="fill" className="h-4 w-4" />
+          <PlayIcon weight="duotone" className="h-4 w-4" />
         )}
       </Button>
     )
@@ -171,21 +171,21 @@ export function PreviewPlayer({
             <div className="absolute inset-0 flex items-center justify-center">
               {isPlaying ? (
                 <PauseIcon
-                  weight="fill"
+                  weight="duotone"
                   className="h-5 w-5 text-white drop-shadow"
                 />
               ) : (
                 <PlayIcon
-                  weight="fill"
+                  weight="duotone"
                   className="h-5 w-5 text-white drop-shadow"
                 />
               )}
             </div>
           </div>
         ) : isPlaying ? (
-          <PauseIcon weight="fill" className="h-5 w-5" />
+          <PauseIcon weight="duotone" className="h-5 w-5" />
         ) : (
-          <PlayIcon weight="fill" className="h-5 w-5" />
+          <PlayIcon weight="duotone" className="h-5 w-5" />
         )}
       </Button>
 
@@ -233,7 +233,7 @@ export function PreviewPlayer({
           className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
           title="Open in Apple Music"
         >
-          <AppleLogoIcon weight="fill" className="h-5 w-5" />
+          <AppleLogoIcon weight="duotone" className="h-5 w-5" />
         </a>
       ) : (
         <span className="text-[10px] text-muted-foreground shrink-0">

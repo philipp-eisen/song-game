@@ -62,7 +62,7 @@ function SheetContent({
               />
             }
           >
-            <XIcon
+            <XIcon weight="duotone"
             />
             <span className="sr-only">Close</span>
           </SheetPrimitive.Close>

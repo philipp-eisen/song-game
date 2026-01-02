@@ -93,7 +93,7 @@ function ImportPlaylistCard() {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <PlusIcon weight="bold" className="size-5" />
+          <PlusIcon weight="duotone" className="size-5" />
           Import Playlist
         </CardTitle>
         <CardDescription>
@@ -226,24 +226,30 @@ function PlaylistItem({ playlist }: { playlist: PlaylistData }) {
             {isReady ? (
               <Badge variant="secondary" className="shrink-0 gap-1">
                 <CheckCircleIcon
-                  weight="fill"
+                  weight="duotone"
                   className="size-3 text-primary"
                 />
                 Ready
               </Badge>
             ) : isImporting ? (
               <Badge variant="outline" className="shrink-0 gap-1">
-                <ArrowsClockwiseIcon className="size-3 animate-spin" />
+                <ArrowsClockwiseIcon
+                  weight="duotone"
+                  className="size-3 animate-spin"
+                />
                 Importing
               </Badge>
             ) : isProcessing ? (
               <Badge variant="outline" className="shrink-0 gap-1">
-                <ArrowsClockwiseIcon className="size-3 animate-spin" />
+                <ArrowsClockwiseIcon
+                  weight="duotone"
+                  className="size-3 animate-spin"
+                />
                 Matching
               </Badge>
             ) : isFailed ? (
               <Badge variant="destructive" className="shrink-0 gap-1">
-                <XCircleIcon weight="fill" className="size-3" />
+                <XCircleIcon weight="duotone" className="size-3" />
                 Failed
               </Badge>
             ) : null}
@@ -269,17 +275,20 @@ function PlaylistItem({ playlist }: { playlist: PlaylistData }) {
           {isProcessing ? (
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <Badge variant="outline" className="gap-1 text-primary">
-                <CheckCircleIcon weight="fill" className="size-3" />
+                <CheckCircleIcon weight="duotone" className="size-3" />
                 {playlist.readyTracks} playable
               </Badge>
               {playlist.unmatchedTracks > 0 ? (
                 <Badge variant="outline" className="gap-1 text-warning">
-                  <WarningIcon weight="fill" className="size-3" />
+                  <WarningIcon weight="duotone" className="size-3" />
                   {playlist.unmatchedTracks} unmatched
                 </Badge>
               ) : null}
               <Badge variant="outline" className="gap-1 text-muted-foreground">
-                <ArrowsClockwiseIcon className="size-3 animate-spin" />
+                <ArrowsClockwiseIcon
+                  weight="duotone"
+                  className="size-3 animate-spin"
+                />
                 {pendingCount} remaining
               </Badge>
             </div>
@@ -289,13 +298,13 @@ function PlaylistItem({ playlist }: { playlist: PlaylistData }) {
             <div className="mt-2 flex flex-wrap items-center gap-2">
               {playlist.readyTracks > 0 ? (
                 <Badge variant="outline" className="gap-1 text-primary">
-                  <CheckCircleIcon weight="fill" className="size-3" />
+                  <CheckCircleIcon weight="duotone" className="size-3" />
                   {playlist.readyTracks} playable
                 </Badge>
               ) : null}
               {playlist.unmatchedTracks > 0 ? (
                 <Badge variant="outline" className="gap-1 text-warning">
-                  <WarningIcon weight="fill" className="size-3" />
+                  <WarningIcon weight="duotone" className="size-3" />
                   {playlist.unmatchedTracks} unmatched
                 </Badge>
               ) : null}
@@ -305,7 +314,7 @@ function PlaylistItem({ playlist }: { playlist: PlaylistData }) {
           {isFailed ? (
             <div className="mt-2">
               <Alert variant="destructive">
-                <XCircleIcon weight="fill" />
+                <XCircleIcon weight="duotone" />
                 <AlertTitle>Import failed</AlertTitle>
                 <AlertDescription>
                   Try importing the playlist again. If it keeps failing, double
