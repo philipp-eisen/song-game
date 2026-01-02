@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 
 export const Route = createFileRoute('/playlists')({
   beforeLoad: ({ context }) => {
@@ -72,7 +73,7 @@ function PlaylistsPage() {
 
 function GuestUpgradeCTA() {
   return (
-    <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10">
+    <Card className="border-primary/20 bg-linear-to-br from-primary/5 to-primary/10">
       <CardHeader>
         <CardTitle className="text-lg">
           Connect Spotify to Import Playlists
@@ -222,114 +223,139 @@ function PlaylistsList({ playlists }: PlaylistsListProps) {
 }
 
 function PlaylistItem({ playlist }: { playlist: PlaylistData }) {
+  const isImporting = playlist.status === 'importing'
+  const isProcessing = playlist.status === 'processing'
   const isReady = playlist.status === 'ready'
-  const isProcessing =
-    playlist.status === 'processing' || playlist.status === 'importing'
   const isFailed = playlist.status === 'failed'
 
-  const matchPercentage =
-    playlist.totalTracks > 0
-      ? (playlist.readyTracks / playlist.totalTracks) * 100
-      : 0
   const processedCount = playlist.readyTracks + playlist.unmatchedTracks
+  const pendingCount = Math.max(0, playlist.totalTracks - processedCount)
 
   return (
-    <li className="space-y-3 rounded-lg border p-3">
-      <div className="flex items-center gap-3">
-        {playlist.imageUrl ? (
-          <img
-            src={playlist.imageUrl}
-            alt=""
-            className="size-12 shrink-0 rounded object-cover"
-          />
-        ) : (
-          <figure className="flex size-12 shrink-0 items-center justify-center rounded bg-muted">
-            <MusicNotes
-              weight="duotone"
-              className="size-6 text-muted-foreground"
-            />
-          </figure>
-        )}
-        <article className="min-w-0 flex-1">
-          <p className="truncate font-medium">{playlist.name}</p>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span className="flex items-center gap-1">
-              {playlist.source === 'spotify' ? (
-                <SpotifyLogo weight="fill" className="size-3" />
-              ) : (
-                <AppleLogo weight="fill" className="size-3" />
-              )}
-              {playlist.totalTracks} tracks
-            </span>
-            {isReady && (
-              <>
-                <span>•</span>
-                <span className="flex items-center gap-1">
-                  <AppleLogo weight="fill" className="size-3" />
-                  {playlist.readyTracks} playable
-                </span>
-              </>
+    <li>
+      <Card>
+        <CardContent className="p-3">
+          <div className="flex items-start gap-2">
+            {playlist.imageUrl ? (
+              <img
+                src={playlist.imageUrl}
+                alt=""
+                className="size-12 shrink-0 rounded-md object-cover"
+              />
+            ) : (
+              <div className="flex size-12 shrink-0 items-center justify-center rounded-md bg-muted">
+                <MusicNotes
+                  weight="duotone"
+                  className="size-6 text-muted-foreground"
+                />
+              </div>
             )}
-          </div>
-        </article>
 
-        {/* Status Badge */}
-        {isReady ? (
-          <Badge variant="secondary" className="shrink-0 gap-1">
-            <CheckCircle weight="fill" className="size-3 text-green-500" />
-            Ready
-          </Badge>
-        ) : isProcessing ? (
-          <Badge variant="outline" className="shrink-0 gap-1">
-            <ArrowsClockwise className="size-3 animate-spin" />
-            Processing...
-          </Badge>
-        ) : isFailed ? (
-          <Badge variant="destructive" className="shrink-0 gap-1">
-            <XCircle weight="fill" className="size-3" />
-            Failed
-          </Badge>
-        ) : null}
-      </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-medium">{playlist.name}</p>
+              <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                <span className="inline-flex items-center gap-1">
+                  {playlist.source === 'spotify' ? (
+                    <SpotifyLogo weight="fill" className="size-3" />
+                  ) : (
+                    <AppleLogo weight="fill" className="size-3" />
+                  )}
+                  {playlist.totalTracks} tracks
+                </span>
+              </div>
+            </div>
 
-      {/* Processing Progress */}
-      {isProcessing && (
-        <div className="space-y-1">
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>Matching tracks to Apple Music...</span>
-            <span>
-              {processedCount}/{playlist.totalTracks}
-            </span>
+            {/* Status Badge */}
+            {isReady ? (
+              <Badge variant="secondary" className="shrink-0 gap-1">
+                <CheckCircle weight="fill" className="size-3 text-primary" />
+                Ready
+              </Badge>
+            ) : isImporting ? (
+              <Badge variant="outline" className="shrink-0 gap-1">
+                <ArrowsClockwise className="size-3 animate-spin" />
+                Importing
+              </Badge>
+            ) : isProcessing ? (
+              <Badge variant="outline" className="shrink-0 gap-1">
+                <ArrowsClockwise className="size-3 animate-spin" />
+                Matching
+              </Badge>
+            ) : isFailed ? (
+              <Badge variant="destructive" className="shrink-0 gap-1">
+                <XCircle weight="fill" className="size-3" />
+                Failed
+              </Badge>
+            ) : null}
           </div>
-          <Progress
-            value={(processedCount / playlist.totalTracks) * 100}
-            className="h-1"
-          />
-        </div>
-      )}
 
-      {/* Ready Summary */}
-      {isReady && playlist.readyTracks > 0 && (
-        <div className="space-y-1">
-          <div className="flex justify-between text-xs">
-            <span className="text-muted-foreground">
-              Apple Music match rate
-            </span>
-            <span className="font-medium">
-              {playlist.readyTracks}/{playlist.totalTracks} (
-              {matchPercentage.toFixed(0)}%)
-            </span>
-          </div>
-          <Progress value={matchPercentage} className="h-1" />
-          {playlist.unmatchedTracks > 0 && (
-            <p className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
-              <Warning weight="fill" className="size-3" />
-              {playlist.unmatchedTracks} track
-              {playlist.unmatchedTracks !== 1 && 's'} couldn't be matched
-            </p>
-          )}
-        </div>
-      )}
+          {/* Import progress (only during import) */}
+          {isImporting && playlist.totalTracks > 0 ? (
+            <div className="mt-2 space-y-2">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Importing tracks…</span>
+                <span className="tabular-nums">
+                  {processedCount}/{playlist.totalTracks}
+                </span>
+              </div>
+              <Progress
+                value={(processedCount / playlist.totalTracks) * 100}
+                className="**:data-[slot=progress-track]:h-2 **:data-[slot=progress-track]:rounded-md"
+              />
+            </div>
+          ) : null}
+
+          {/* Post-import status summary */}
+          {isProcessing ? (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <Badge variant="outline" className="gap-1 text-primary">
+                <CheckCircle weight="fill" className="size-3" />
+                {playlist.readyTracks} playable
+              </Badge>
+              {playlist.unmatchedTracks > 0 ? (
+                <Badge variant="outline" className="gap-1 text-warning">
+                  <Warning weight="fill" className="size-3" />
+                  {playlist.unmatchedTracks} unmatched
+                </Badge>
+              ) : null}
+              <Badge variant="outline" className="gap-1 text-muted-foreground">
+                <ArrowsClockwise className="size-3 animate-spin" />
+                {pendingCount} remaining
+              </Badge>
+            </div>
+          ) : null}
+
+          {isReady ? (
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              {playlist.readyTracks > 0 ? (
+                <Badge variant="outline" className="gap-1 text-primary">
+                  <CheckCircle weight="fill" className="size-3" />
+                  {playlist.readyTracks} playable
+                </Badge>
+              ) : null}
+              {playlist.unmatchedTracks > 0 ? (
+                <Badge variant="outline" className="gap-1 text-warning">
+                  <Warning weight="fill" className="size-3" />
+                  {playlist.unmatchedTracks} unmatched
+                </Badge>
+              ) : null}
+            </div>
+          ) : null}
+
+          {isFailed ? (
+            <div className="mt-2">
+              <Alert variant="destructive">
+                <XCircle weight="fill" />
+                <AlertTitle>Import failed</AlertTitle>
+                <AlertDescription>
+                  Try importing the playlist again. If it keeps failing, double
+                  check the playlist URL/ID.
+                </AlertDescription>
+              </Alert>
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
     </li>
   )
 }
