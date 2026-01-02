@@ -3,7 +3,6 @@ import { useSuspenseQuery } from '@tanstack/react-query'
 import { useAction } from 'convex/react'
 import { useState } from 'react'
 import {
-  AppleLogo,
   ArrowsClockwise,
   CheckCircle,
   MusicNotes,
@@ -254,14 +253,7 @@ function PlaylistItem({ playlist }: { playlist: PlaylistData }) {
             <div className="min-w-0 flex-1">
               <p className="truncate font-medium">{playlist.name}</p>
               <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                <span className="inline-flex items-center gap-1">
-                  {playlist.source === 'spotify' ? (
-                    <SpotifyLogo weight="fill" className="size-3" />
-                  ) : (
-                    <AppleLogo weight="fill" className="size-3" />
-                  )}
-                  {playlist.totalTracks} tracks
-                </span>
+                <span>{playlist.totalTracks} tracks</span>
               </div>
             </div>
 
