@@ -8,7 +8,6 @@ import type { Id } from './_generated/dataModel'
 
 /**
  * Get a single player's timeline with card details
- * Uses Apple Music artwork when available
  */
 export const getPlayerTimeline = query({
   args: {
@@ -25,8 +24,7 @@ export const getPlayerTimeline = query({
           title: v.string(),
           artistNames: v.array(v.string()),
           releaseYear: v.number(),
-          albumImageUrl: v.optional(v.string()),
-          artworkUrl: v.optional(v.string()), // Apple Music artwork
+          imageUrl: v.optional(v.string()),
         }),
       ),
     }),
@@ -38,13 +36,13 @@ export const getPlayerTimeline = query({
       return null
     }
 
-    const player = await ctx.db.get('gamePlayers', args.playerId)
+    const player = await ctx.db.get("gamePlayers", args.playerId)
     if (!player) {
       return null
     }
 
     // Verify access to this game
-    const game = await ctx.db.get('games', player.gameId)
+    const game = await ctx.db.get("games", player.gameId)
     if (!game) {
       return null
     }
@@ -75,32 +73,30 @@ export const getPlayerTimeline = query({
 
     entries.sort((a, b) => a.position - b.position)
 
-    // Fetch card and song details
+    // Fetch card and track details
     const cards: Array<{
       _id: Id<'gameCards'>
       position: number
       title: string
       artistNames: Array<string>
       releaseYear: number
-      albumImageUrl?: string
-      artworkUrl?: string
+      imageUrl?: string
     }> = []
 
     for (const entry of entries) {
-      const card = await ctx.db.get('gameCards', entry.cardId)
+      const card = await ctx.db.get("gameCards", entry.cardId)
       if (!card) continue
 
-      const song = await ctx.db.get('songs', card.songId)
-      if (!song) continue
+      const track = await ctx.db.get("playlistTracks", card.trackId)
+      if (!track) continue
 
       cards.push({
         _id: card._id,
         position: entry.position,
-        title: song.title,
-        artistNames: song.artistNames,
-        releaseYear: song.releaseYear,
-        albumImageUrl: song.albumImageUrl,
-        artworkUrl: song.artworkUrl, // Apple Music artwork
+        title: track.title,
+        artistNames: track.artistNames,
+        releaseYear: track.releaseYear!,
+        imageUrl: track.imageUrl,
       })
     }
 
@@ -114,7 +110,6 @@ export const getPlayerTimeline = query({
 
 /**
  * Get all player timelines for a game
- * Uses Apple Music artwork when available
  */
 export const getAllTimelines = query({
   args: {
@@ -135,8 +130,7 @@ export const getAllTimelines = query({
             title: v.string(),
             artistNames: v.array(v.string()),
             releaseYear: v.number(),
-            albumImageUrl: v.optional(v.string()),
-            artworkUrl: v.optional(v.string()), // Apple Music artwork
+            imageUrl: v.optional(v.string()),
           }),
         ),
       }),
@@ -149,7 +143,7 @@ export const getAllTimelines = query({
       return null
     }
 
-    const game = await ctx.db.get('games', args.gameId)
+    const game = await ctx.db.get("games", args.gameId)
     if (!game) {
       return null
     }
@@ -189,8 +183,7 @@ export const getAllTimelines = query({
         title: string
         artistNames: Array<string>
         releaseYear: number
-        albumImageUrl?: string
-        artworkUrl?: string
+        imageUrl?: string
       }>
     }> = []
 
@@ -203,32 +196,30 @@ export const getAllTimelines = query({
 
       entries.sort((a, b) => a.position - b.position)
 
-      // Fetch card and song details
+      // Fetch card and track details
       const cards: Array<{
         _id: Id<'gameCards'>
         position: number
         title: string
         artistNames: Array<string>
         releaseYear: number
-        albumImageUrl?: string
-        artworkUrl?: string
+        imageUrl?: string
       }> = []
 
       for (const entry of entries) {
-        const card = await ctx.db.get('gameCards', entry.cardId)
+        const card = await ctx.db.get("gameCards", entry.cardId)
         if (!card) continue
 
-        const song = await ctx.db.get('songs', card.songId)
-        if (!song) continue
+        const track = await ctx.db.get("playlistTracks", card.trackId)
+        if (!track) continue
 
         cards.push({
           _id: card._id,
           position: entry.position,
-          title: song.title,
-          artistNames: song.artistNames,
-          releaseYear: song.releaseYear,
-          albumImageUrl: song.albumImageUrl,
-          artworkUrl: song.artworkUrl, // Apple Music artwork
+          title: track.title,
+          artistNames: track.artistNames,
+          releaseYear: track.releaseYear!,
+          imageUrl: track.imageUrl,
         })
       }
 
@@ -269,7 +260,7 @@ export const getCurrentRoundSongPreview = query({
       return null
     }
 
-    const game = await ctx.db.get('games', args.gameId)
+    const game = await ctx.db.get("games", args.gameId)
     if (!game) {
       return null
     }
@@ -302,26 +293,26 @@ export const getCurrentRoundSongPreview = query({
       }
     }
 
-    const card = await ctx.db.get('gameCards', game.currentRound.cardId)
+    const card = await ctx.db.get("gameCards", game.currentRound.cardId)
     if (!card) {
       return null
     }
 
-    const song = await ctx.db.get('songs', card.songId)
-    if (!song) {
+    const track = await ctx.db.get("playlistTracks", card.trackId)
+    if (!track) {
       return null
     }
 
     return {
-      previewUrl: song.previewUrl,
-      appleMusicId: song.appleMusicId,
+      previewUrl: track.previewUrl,
+      appleMusicId: track.appleMusicId,
     }
   },
 })
 
 /**
  * Get the current round's card info (only available after reveal)
- * Includes Apple Music artwork and preview URL
+ * Includes artwork and preview URL, plus Spotify track ID for "Open in Spotify" link
  */
 export const getCurrentRoundCard = query({
   args: {
@@ -333,11 +324,9 @@ export const getCurrentRoundCard = query({
       title: v.string(),
       artistNames: v.array(v.string()),
       releaseYear: v.number(),
-      albumName: v.optional(v.string()),
-      albumImageUrl: v.optional(v.string()),
-      artworkUrl: v.optional(v.string()), // Apple Music artwork
+      imageUrl: v.optional(v.string()),
       previewUrl: v.optional(v.string()),
-      spotifyUri: v.optional(v.string()),
+      spotifyTrackId: v.optional(v.string()),
     }),
     v.null(),
   ),
@@ -347,7 +336,7 @@ export const getCurrentRoundCard = query({
       return null
     }
 
-    const game = await ctx.db.get('games', args.gameId)
+    const game = await ctx.db.get("games", args.gameId)
     if (!game) {
       return null
     }
@@ -376,26 +365,24 @@ export const getCurrentRoundCard = query({
       }
     }
 
-    const card = await ctx.db.get('gameCards', game.currentRound.cardId)
+    const card = await ctx.db.get("gameCards", game.currentRound.cardId)
     if (!card) {
       return null
     }
 
-    const song = await ctx.db.get('songs', card.songId)
-    if (!song) {
+    const track = await ctx.db.get("playlistTracks", card.trackId)
+    if (!track) {
       return null
     }
 
     return {
       _id: card._id,
-      title: song.title,
-      artistNames: song.artistNames,
-      releaseYear: song.releaseYear,
-      albumName: song.albumName,
-      albumImageUrl: song.albumImageUrl,
-      artworkUrl: song.artworkUrl, // Apple Music artwork
-      previewUrl: song.previewUrl,
-      spotifyUri: song.spotifyUri,
+      title: track.title,
+      artistNames: track.artistNames,
+      releaseYear: track.releaseYear!,
+      imageUrl: track.imageUrl,
+      previewUrl: track.previewUrl,
+      spotifyTrackId: track.spotifyTrackId,
     }
   },
 })

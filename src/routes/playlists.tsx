@@ -11,9 +11,9 @@ import {
   Plus,
   SpotifyLogo,
   Warning,
+  XCircle,
 } from '@phosphor-icons/react'
 import { api } from '../../convex/_generated/api'
-import type { Id } from '../../convex/_generated/dataModel'
 import { listMyPlaylistsQuery } from '@/lib/convex-queries'
 import { authClient } from '@/lib/auth-client'
 import { Button } from '@/components/ui/button'
@@ -113,7 +113,9 @@ function ImportPlaylistCard() {
       const result = await importPlaylist({
         playlistUrlOrId: playlistUrl.trim(),
       })
-      setSuccess(`Imported ${result.trackCount} tracks!`)
+      setSuccess(
+        `Imported ${result.trackCount} tracks! Processing will continue in the background.`,
+      )
       setPlaylistUrl('')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to import playlist')
@@ -130,7 +132,8 @@ function ImportPlaylistCard() {
           Import Playlist
         </CardTitle>
         <CardDescription>
-          Paste a Spotify playlist URL or ID to import it
+          Paste a Spotify playlist URL or ID to import it. Tracks are
+          automatically matched to Apple Music for playback.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -168,12 +171,13 @@ function ImportPlaylistCard() {
 
 interface PlaylistData {
   _id: string
+  source: 'spotify' | 'appleMusic'
   name: string
-  trackCount: number
   imageUrl?: string
-  resolutionStatus?: 'pending' | 'inProgress' | 'completed' | 'failed' | null
-  matchedTracks?: number | null
-  unmatchedTracks?: number | null
+  status: 'importing' | 'processing' | 'ready' | 'failed'
+  totalTracks: number
+  readyTracks: number
+  unmatchedTracks: number
 }
 
 interface PlaylistsListProps {
@@ -218,142 +222,113 @@ function PlaylistsList({ playlists }: PlaylistsListProps) {
 }
 
 function PlaylistItem({ playlist }: { playlist: PlaylistData }) {
-  const [resolving, setResolving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [result, setResult] = useState<{
-    matchedTracks: number
-    unmatchedTracks: number
-  } | null>(null)
+  const isReady = playlist.status === 'ready'
+  const isProcessing =
+    playlist.status === 'processing' || playlist.status === 'importing'
+  const isFailed = playlist.status === 'failed'
 
-  const resolvePlaylist = useAction(
-    api.playlistImport.resolvePlaylistToAppleMusic,
-  )
-
-  const handleResolve = async () => {
-    setError(null)
-    setResolving(true)
-
-    try {
-      const res = await resolvePlaylist({
-        playlistId: playlist._id as Id<'spotifyPlaylists'>,
-      })
-      setResult({
-        matchedTracks: res.matchedTracks,
-        unmatchedTracks: res.unmatchedTracks,
-      })
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Failed to resolve playlist',
-      )
-    } finally {
-      setResolving(false)
-    }
-  }
-
-  // Determine current resolution state
-  const isResolved =
-    playlist.resolutionStatus === 'completed' ||
-    (result && result.matchedTracks > 0)
-  const matchedCount = result?.matchedTracks ?? playlist.matchedTracks ?? 0
-  const unmatchedCount =
-    result?.unmatchedTracks ?? playlist.unmatchedTracks ?? 0
-  const totalTracks = playlist.trackCount
   const matchPercentage =
-    totalTracks > 0 ? (matchedCount / totalTracks) * 100 : 0
+    playlist.totalTracks > 0
+      ? (playlist.readyTracks / playlist.totalTracks) * 100
+      : 0
+  const processedCount = playlist.readyTracks + playlist.unmatchedTracks
 
   return (
-    <li className="rounded-lg border p-3 space-y-3">
+    <li className="space-y-3 rounded-lg border p-3">
       <div className="flex items-center gap-3">
         {playlist.imageUrl ? (
           <img
             src={playlist.imageUrl}
             alt=""
-            className="size-12 rounded object-cover shrink-0"
+            className="size-12 shrink-0 rounded object-cover"
           />
         ) : (
-          <figure className="flex size-12 items-center justify-center rounded bg-muted shrink-0">
+          <figure className="flex size-12 shrink-0 items-center justify-center rounded bg-muted">
             <MusicNotes
               weight="duotone"
               className="size-6 text-muted-foreground"
             />
           </figure>
         )}
-        <article className="flex-1 min-w-0">
-          <p className="font-medium truncate">{playlist.name}</p>
+        <article className="min-w-0 flex-1">
+          <p className="truncate font-medium">{playlist.name}</p>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span>{totalTracks} tracks</span>
-            {isResolved && (
+            <span className="flex items-center gap-1">
+              {playlist.source === 'spotify' ? (
+                <SpotifyLogo weight="fill" className="size-3" />
+              ) : (
+                <AppleLogo weight="fill" className="size-3" />
+              )}
+              {playlist.totalTracks} tracks
+            </span>
+            {isReady && (
               <>
                 <span>•</span>
                 <span className="flex items-center gap-1">
                   <AppleLogo weight="fill" className="size-3" />
-                  {matchedCount} matched
+                  {playlist.readyTracks} playable
                 </span>
               </>
             )}
           </div>
         </article>
 
-        {/* Resolution Status Badge */}
-        {isResolved ? (
+        {/* Status Badge */}
+        {isReady ? (
           <Badge variant="secondary" className="shrink-0 gap-1">
             <CheckCircle weight="fill" className="size-3 text-green-500" />
-            Resolved
+            Ready
           </Badge>
-        ) : resolving || playlist.resolutionStatus === 'inProgress' ? (
+        ) : isProcessing ? (
           <Badge variant="outline" className="shrink-0 gap-1">
             <ArrowsClockwise className="size-3 animate-spin" />
-            Resolving...
+            Processing...
           </Badge>
-        ) : (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleResolve}
-            disabled={resolving}
-            className="shrink-0 gap-1.5"
-          >
-            <AppleLogo weight="fill" className="size-3.5" />
-            Resolve
-          </Button>
-        )}
+        ) : isFailed ? (
+          <Badge variant="destructive" className="shrink-0 gap-1">
+            <XCircle weight="fill" className="size-3" />
+            Failed
+          </Badge>
+        ) : null}
       </div>
 
-      {/* Resolution Progress/Results */}
-      {resolving && (
+      {/* Processing Progress */}
+      {isProcessing && (
         <div className="space-y-1">
           <div className="flex justify-between text-xs text-muted-foreground">
             <span>Matching tracks to Apple Music...</span>
+            <span>
+              {processedCount}/{playlist.totalTracks}
+            </span>
           </div>
-          <Progress value={null} className="h-1" />
+          <Progress
+            value={(processedCount / playlist.totalTracks) * 100}
+            className="h-1"
+          />
         </div>
       )}
 
-      {isResolved && matchedCount > 0 && (
+      {/* Ready Summary */}
+      {isReady && playlist.readyTracks > 0 && (
         <div className="space-y-1">
           <div className="flex justify-between text-xs">
             <span className="text-muted-foreground">
               Apple Music match rate
             </span>
             <span className="font-medium">
-              {matchedCount}/{totalTracks} ({matchPercentage.toFixed(0)}%)
+              {playlist.readyTracks}/{playlist.totalTracks} (
+              {matchPercentage.toFixed(0)}%)
             </span>
           </div>
           <Progress value={matchPercentage} className="h-1" />
-          {unmatchedCount > 0 && (
+          {playlist.unmatchedTracks > 0 && (
             <p className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
               <Warning weight="fill" className="size-3" />
-              {unmatchedCount} track{unmatchedCount !== 1 && 's'} couldn't be
-              matched
+              {playlist.unmatchedTracks} track
+              {playlist.unmatchedTracks !== 1 && 's'} couldn't be matched
             </p>
           )}
         </div>
-      )}
-
-      {error && (
-        <p className="text-sm text-destructive" role="alert">
-          {error}
-        </p>
       )}
     </li>
   )

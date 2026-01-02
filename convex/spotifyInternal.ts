@@ -4,11 +4,11 @@ import { components } from './_generated/api'
 import type { Id } from './_generated/dataModel'
 
 // ===========================================
-// Internal queries/mutations for Spotify
+// Internal queries/mutations for Spotify Import
 // ===========================================
 
 /**
- * Get the Spotify account for a user (to retrieve access token)
+ * Get the Spotify account for a user (to retrieve access token for importing)
  */
 export const getSpotifyAccount = internalQuery({
   args: { userId: v.string() },
@@ -91,309 +91,118 @@ export const updateSpotifyTokens = internalMutation({
 })
 
 /**
- * Upsert a song (by spotifyTrackId)
+ * Upsert a playlist and replace all its tracks with new ones.
+ * Tracks start in 'pending' status for Apple Music matching.
  */
-export const upsertSong = internalMutation({
-  args: {
-    spotifyTrackId: v.string(),
-    title: v.string(),
-    artistNames: v.array(v.string()),
-    releaseYear: v.number(),
-    previewUrl: v.optional(v.string()),
-    spotifyUri: v.optional(v.string()),
-    albumName: v.optional(v.string()),
-    albumImageUrl: v.optional(v.string()),
-    // New fields for Apple Music support
-    isrc: v.optional(v.string()),
-  },
-  returns: v.id('songs'),
-  handler: async (ctx, args) => {
-    // Check if song already exists
-    const existing = await ctx.db
-      .query('songs')
-      .withIndex('by_spotifyTrackId', (q) =>
-        q.eq('spotifyTrackId', args.spotifyTrackId),
-      )
-      .unique()
-
-    if (existing) {
-      // Update the existing song
-      await ctx.db.patch('songs', existing._id, {
-        title: args.title,
-        artistNames: args.artistNames,
-        releaseYear: args.releaseYear,
-        previewUrl: args.previewUrl,
-        spotifyUri: args.spotifyUri,
-        albumName: args.albumName,
-        albumImageUrl: args.albumImageUrl,
-        isrc: args.isrc,
-        // Don't overwrite resolvedFrom if already set
-        resolvedFrom: existing.resolvedFrom ?? 'spotify',
-      })
-      return existing._id
-    }
-
-    // Create new song
-    return ctx.db.insert('songs', {
-      spotifyTrackId: args.spotifyTrackId,
-      title: args.title,
-      artistNames: args.artistNames,
-      releaseYear: args.releaseYear,
-      previewUrl: args.previewUrl,
-      spotifyUri: args.spotifyUri,
-      albumName: args.albumName,
-      albumImageUrl: args.albumImageUrl,
-      isrc: args.isrc,
-      resolvedFrom: 'spotify', // Mark as needing Apple Music resolution
-    })
-  },
-})
-
-/**
- * Update a song with Apple Music data after resolution
- */
-export const updateSongWithAppleMusic = internalMutation({
-  args: {
-    songId: v.id('songs'),
-    appleMusicId: v.string(),
-    title: v.string(),
-    artistName: v.string(),
-    albumName: v.optional(v.string()),
-    releaseYear: v.number(),
-    releaseDate: v.optional(v.string()),
-    previewUrl: v.optional(v.string()),
-    artworkUrl: v.optional(v.string()),
-    isrc: v.optional(v.string()),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    await ctx.db.patch('songs', args.songId, {
-      appleMusicId: args.appleMusicId,
-      title: args.title,
-      artistNames: [args.artistName], // Apple Music gives us a single artist string
-      albumName: args.albumName,
-      releaseYear: args.releaseYear,
-      releaseDate: args.releaseDate,
-      previewUrl: args.previewUrl, // Apple Music preview takes precedence
-      artworkUrl: args.artworkUrl,
-      isrc: args.isrc,
-      resolvedFrom: 'spotifyToApple',
-    })
-    return null
-  },
-})
-
-/**
- * Get a song by its ID
- */
-export const getSong = internalQuery({
-  args: { songId: v.id('songs') },
-  returns: v.union(
-    v.object({
-      _id: v.id('songs'),
-      spotifyTrackId: v.optional(v.string()),
-      appleMusicId: v.optional(v.string()),
-      isrc: v.optional(v.string()),
-      title: v.string(),
-      artistNames: v.array(v.string()),
-      releaseYear: v.number(),
-      previewUrl: v.optional(v.string()),
-      resolvedFrom: v.optional(
-        v.union(
-          v.literal('spotify'),
-          v.literal('appleMusic'),
-          v.literal('spotifyToApple'),
-        ),
-      ),
-    }),
-    v.null(),
-  ),
-  handler: async (ctx, args) => {
-    const song = await ctx.db.get('songs', args.songId)
-    if (!song) return null
-
-    return {
-      _id: song._id,
-      spotifyTrackId: song.spotifyTrackId,
-      appleMusicId: song.appleMusicId,
-      isrc: song.isrc,
-      title: song.title,
-      artistNames: song.artistNames,
-      releaseYear: song.releaseYear,
-      previewUrl: song.previewUrl,
-      resolvedFrom: song.resolvedFrom,
-    }
-  },
-})
-
-/**
- * Upsert a playlist and clear its existing song mappings
- */
-export const upsertPlaylist = internalMutation({
+export const upsertPlaylistWithTracks = internalMutation({
   args: {
     ownerUserId: v.string(),
-    spotifyPlaylistId: v.string(),
+    source: v.union(v.literal('spotify'), v.literal('appleMusic')),
+    sourcePlaylistId: v.string(),
     name: v.string(),
     description: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
-    trackCount: v.number(),
-    snapshotId: v.string(),
+    tracks: v.array(
+      v.object({
+        position: v.number(),
+        title: v.string(),
+        artistNames: v.array(v.string()),
+        releaseYear: v.optional(v.number()),
+        imageUrl: v.optional(v.string()),
+        spotifyTrackId: v.optional(v.string()),
+        isrc: v.optional(v.string()),
+        // For Apple Music imports that are ready immediately
+        appleMusicId: v.optional(v.string()),
+        previewUrl: v.optional(v.string()),
+      }),
+    ),
   },
-  returns: v.id('spotifyPlaylists'),
+  returns: v.id('playlists'),
   handler: async (ctx, args) => {
+    const now = Date.now()
+
     // Check if playlist already exists for this user
     const existing = await ctx.db
-      .query('spotifyPlaylists')
-      .withIndex('by_ownerUserId_and_spotifyPlaylistId', (q) =>
+      .query('playlists')
+      .withIndex('by_ownerUserId_and_sourcePlaylistId', (q) =>
         q
           .eq('ownerUserId', args.ownerUserId)
-          .eq('spotifyPlaylistId', args.spotifyPlaylistId),
+          .eq('sourcePlaylistId', args.sourcePlaylistId),
       )
       .unique()
 
-    let playlistId: Id<'spotifyPlaylists'>
+    let playlistId: Id<'playlists'>
 
     if (existing) {
-      // Update existing playlist
-      await ctx.db.patch('spotifyPlaylists', existing._id, {
-        name: args.name,
-        description: args.description,
-        imageUrl: args.imageUrl,
-        trackCount: args.trackCount,
-        snapshotId: args.snapshotId,
-        importedAt: Date.now(),
-      })
       playlistId = existing._id
 
-      // Clear existing song mappings
-      const existingMappings = await ctx.db
-        .query('playlistSongs')
+      // Delete all existing tracks
+      const existingTracks = await ctx.db
+        .query('playlistTracks')
         .withIndex('by_playlistId', (q) => q.eq('playlistId', playlistId))
         .collect()
 
-      for (const mapping of existingMappings) {
-        await ctx.db.delete('playlistSongs', mapping._id)
+      for (const track of existingTracks) {
+        await ctx.db.delete("playlistTracks", track._id)
       }
-    } else {
-      // Create new playlist
-      playlistId = await ctx.db.insert('spotifyPlaylists', {
-        ownerUserId: args.ownerUserId,
-        spotifyPlaylistId: args.spotifyPlaylistId,
+
+      // Update playlist metadata
+      await ctx.db.patch("playlists", playlistId, {
         name: args.name,
         description: args.description,
         imageUrl: args.imageUrl,
-        trackCount: args.trackCount,
-        snapshotId: args.snapshotId,
-        importedAt: Date.now(),
+        importedAt: now,
+        status: args.source === 'appleMusic' ? 'ready' : 'processing',
+        totalTracks: args.tracks.length,
+        readyTracks: 0,
+        unmatchedTracks: 0,
+      })
+    } else {
+      // Create new playlist
+      playlistId = await ctx.db.insert('playlists', {
+        ownerUserId: args.ownerUserId,
+        source: args.source,
+        sourcePlaylistId: args.sourcePlaylistId,
+        name: args.name,
+        description: args.description,
+        imageUrl: args.imageUrl,
+        importedAt: now,
+        status: args.source === 'appleMusic' ? 'ready' : 'processing',
+        totalTracks: args.tracks.length,
+        readyTracks: 0,
+        unmatchedTracks: 0,
+      })
+    }
+
+    // Insert all tracks
+    for (const track of args.tracks) {
+      // Apple Music imports are ready immediately, Spotify imports are pending
+      const isReady =
+        args.source === 'appleMusic' ||
+        (track.appleMusicId && track.previewUrl && track.releaseYear)
+
+      await ctx.db.insert('playlistTracks', {
+        playlistId,
+        position: track.position,
+        status: isReady ? 'ready' : 'pending',
+        title: track.title,
+        artistNames: track.artistNames,
+        releaseYear: track.releaseYear,
+        imageUrl: track.imageUrl,
+        spotifyTrackId: track.spotifyTrackId,
+        isrc: track.isrc,
+        appleMusicId: track.appleMusicId,
+        previewUrl: track.previewUrl,
+      })
+    }
+
+    // If Apple Music import, update readyTracks count
+    if (args.source === 'appleMusic') {
+      await ctx.db.patch("playlists", playlistId, {
+        readyTracks: args.tracks.length,
       })
     }
 
     return playlistId
-  },
-})
-
-/**
- * Add a song to a playlist at a specific position
- */
-export const addPlaylistSong = internalMutation({
-  args: {
-    playlistId: v.id('spotifyPlaylists'),
-    songId: v.id('songs'),
-    position: v.number(),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    await ctx.db.insert('playlistSongs', {
-      playlistId: args.playlistId,
-      songId: args.songId,
-      position: args.position,
-    })
-    return null
-  },
-})
-
-/**
- * Update playlist resolution status
- */
-export const updatePlaylistResolutionStatus = internalMutation({
-  args: {
-    playlistId: v.id('spotifyPlaylists'),
-    status: v.union(
-      v.literal('pending'),
-      v.literal('inProgress'),
-      v.literal('completed'),
-      v.literal('failed'),
-    ),
-    matchedTracks: v.optional(v.number()),
-    unmatchedTracks: v.optional(v.number()),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const updateData: Record<string, unknown> = {
-      resolutionStatus: args.status,
-      lastResolvedAt: Date.now(),
-    }
-
-    if (args.matchedTracks !== undefined) {
-      updateData.matchedTracks = args.matchedTracks
-    }
-    if (args.unmatchedTracks !== undefined) {
-      updateData.unmatchedTracks = args.unmatchedTracks
-    }
-
-    await ctx.db.patch('spotifyPlaylists', args.playlistId, updateData)
-    return null
-  },
-})
-
-/**
- * Get all songs in a playlist
- */
-export const getPlaylistSongs = internalQuery({
-  args: { playlistId: v.id('spotifyPlaylists') },
-  returns: v.array(
-    v.object({
-      songId: v.id('songs'),
-      position: v.number(),
-      spotifyTrackId: v.optional(v.string()),
-      appleMusicId: v.optional(v.string()),
-      isrc: v.optional(v.string()),
-      title: v.string(),
-      artistNames: v.array(v.string()),
-      releaseYear: v.number(),
-      resolvedFrom: v.optional(
-        v.union(
-          v.literal('spotify'),
-          v.literal('appleMusic'),
-          v.literal('spotifyToApple'),
-        ),
-      ),
-    }),
-  ),
-  handler: async (ctx, args) => {
-    const mappings = await ctx.db
-      .query('playlistSongs')
-      .withIndex('by_playlistId', (q) => q.eq('playlistId', args.playlistId))
-      .collect()
-
-    const results = []
-    for (const mapping of mappings) {
-      const song = await ctx.db.get('songs', mapping.songId)
-      if (song) {
-        results.push({
-          songId: song._id,
-          position: mapping.position,
-          spotifyTrackId: song.spotifyTrackId,
-          appleMusicId: song.appleMusicId,
-          isrc: song.isrc,
-          title: song.title,
-          artistNames: song.artistNames,
-          releaseYear: song.releaseYear,
-          resolvedFrom: song.resolvedFrom,
-        })
-      }
-    }
-
-    return results.sort((a, b) => a.position - b.position)
   },
 })

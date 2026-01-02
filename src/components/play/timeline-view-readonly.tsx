@@ -122,7 +122,7 @@ export function TimelineViewReadonly({
                   title={item.card.title}
                   releaseYear={item.card.releaseYear}
                   artistName={item.card.artistNames[0]}
-                  albumImageUrl={item.card.albumImageUrl}
+                  imageUrl={item.card.imageUrl}
                 />
               ) : (
                 <RoundTimelineCard
@@ -135,7 +135,8 @@ export function TimelineViewReadonly({
                           title: currentCard.title,
                           releaseYear: currentCard.releaseYear,
                           artistName: currentCard.artistNames[0],
-                          albumImageUrl: currentCard.albumImageUrl,
+                          imageUrl: currentCard.imageUrl,
+                          spotifyTrackId: currentCard.spotifyTrackId,
                         }
                       : undefined
                   }

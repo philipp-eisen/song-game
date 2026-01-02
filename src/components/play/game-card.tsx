@@ -5,7 +5,7 @@ interface GameCardProps {
   title: string
   releaseYear: number
   artistName?: string
-  albumImageUrl?: string | null
+  imageUrl?: string | null
   className?: string
 }
 
@@ -13,7 +13,7 @@ export function GameCard({
   title,
   releaseYear,
   artistName,
-  albumImageUrl,
+  imageUrl,
   className,
 }: GameCardProps) {
   return (
@@ -25,9 +25,9 @@ export function GameCard({
       )}
     >
       <CardContent className="flex flex-col items-center gap-0 p-0">
-        {albumImageUrl && (
+        {imageUrl && (
           <img
-            src={albumImageUrl}
+            src={imageUrl}
             alt=""
             className="mb-1 h-12 w-12 shrink-0 rounded object-cover"
           />
