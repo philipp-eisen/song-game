@@ -1,5 +1,6 @@
 import { v } from 'convex/values'
 import { mutation, query } from './_generated/server'
+import type { QueryCtx } from './_generated/server'
 import type { Doc, Id } from './_generated/dataModel'
 
 // ===========================================
@@ -596,68 +597,185 @@ export const start = mutation({
 // Game Queries
 // ===========================================
 
+// Shared return type validator for game queries
+const gameResponseValidator = v.object({
+  _id: v.id('games'),
+  hostUserId: v.string(),
+  isCurrentUserHost: v.boolean(),
+  joinCode: v.string(),
+  mode: gameModeValidator,
+  playlistId: v.id('playlists'),
+  playlistName: v.optional(v.string()),
+  useTokens: v.boolean(),
+  startingTokens: v.number(),
+  maxTokens: v.number(),
+  winCondition: v.number(),
+  phase: gamePhaseValidator,
+  currentTurnSeatIndex: v.number(),
+  winnerId: v.optional(v.id('gamePlayers')),
+  createdAt: v.number(),
+  startedAt: v.optional(v.number()),
+  finishedAt: v.optional(v.number()),
+  players: v.array(
+    v.object({
+      _id: v.id('gamePlayers'),
+      seatIndex: v.number(),
+      displayName: v.string(),
+      kind: v.union(v.literal('local'), v.literal('user')),
+      userId: v.optional(v.string()),
+      tokenBalance: v.number(),
+      isHostSeat: v.boolean(),
+      isCurrentUser: v.boolean(),
+    }),
+  ),
+  currentRound: v.optional(
+    v.object({
+      activePlayerId: v.id('gamePlayers'),
+      placementIndex: v.optional(v.number()),
+      bets: v.array(
+        v.object({
+          bettorPlayerId: v.id('gamePlayers'),
+          slotIndex: v.number(),
+        }),
+      ),
+      card: v.optional(
+        v.object({
+          _id: v.id('gameCards'),
+          title: v.string(),
+          artistNames: v.array(v.string()),
+          releaseYear: v.number(),
+          imageUrl: v.optional(v.string()),
+        }),
+      ),
+    }),
+  ),
+  deckRemaining: v.number(),
+})
+
+// Type for current round info
+type CurrentRoundInfo = {
+  activePlayerId: Id<'gamePlayers'>
+  placementIndex?: number
+  bets: Array<{ bettorPlayerId: Id<'gamePlayers'>; slotIndex: number }>
+  card?: {
+    _id: Id<'gameCards'>
+    title: string
+    artistNames: Array<string>
+    releaseYear: number
+    imageUrl?: string
+  }
+}
+
+/**
+ * Helper to build game response data from a game document.
+ * Used by both `get` and `getByJoinCode` queries.
+ */
+async function buildGameResponse(
+  ctx: QueryCtx,
+  game: Doc<'games'>,
+  identity: { subject: string },
+) {
+  // Get playlist name
+  const playlist = await ctx.db.get('playlists', game.playlistId)
+
+  // Get all players
+  const players = await ctx.db
+    .query('gamePlayers')
+    .withIndex('by_gameId', (q) => q.eq('gameId', game._id))
+    .collect()
+
+  players.sort((a, b) => a.seatIndex - b.seatIndex)
+
+  // Check if the current user is the host or a player
+  const isHost = game.hostUserId === identity.subject
+  const isPlayer = players.some(
+    (p) => p.kind === 'user' && p.userId === identity.subject,
+  )
+
+  // For host-only mode, host can always see everything
+  // For sidecars mode, need to be host or a player
+  if (!isHost && !isPlayer) {
+    return null
+  }
+
+  // Count remaining deck cards
+  const deckCards = await ctx.db
+    .query('gameCards')
+    .withIndex('by_gameId_and_state', (q) =>
+      q.eq('gameId', game._id).eq('state', 'deck'),
+    )
+    .collect()
+
+  // Build current round info
+  let currentRound: CurrentRoundInfo | undefined = undefined
+
+  if (game.currentRound) {
+    currentRound = {
+      activePlayerId: game.currentRound.activePlayerId,
+      placementIndex: game.currentRound.placementIndex,
+      bets: game.currentRound.bets.map((b) => ({
+        bettorPlayerId: b.bettorPlayerId,
+        slotIndex: b.slotIndex,
+      })),
+    }
+
+    // Only show card details after reveal
+    if (game.phase === 'revealed') {
+      const card = await ctx.db.get('gameCards', game.currentRound.cardId)
+      if (card) {
+        const track = await ctx.db.get('playlistTracks', card.trackId)
+        if (track) {
+          currentRound.card = {
+            _id: card._id,
+            title: track.title,
+            artistNames: track.artistNames,
+            releaseYear: track.releaseYear!,
+            imageUrl: track.imageUrl,
+          }
+        }
+      }
+    }
+  }
+
+  return {
+    _id: game._id,
+    hostUserId: game.hostUserId,
+    isCurrentUserHost: isHost,
+    joinCode: game.joinCode,
+    mode: game.mode,
+    playlistId: game.playlistId,
+    playlistName: playlist?.name,
+    useTokens: game.useTokens,
+    startingTokens: game.startingTokens,
+    maxTokens: game.maxTokens,
+    winCondition: game.winCondition,
+    phase: game.phase,
+    currentTurnSeatIndex: game.currentTurnSeatIndex,
+    winnerId: game.winnerId,
+    createdAt: game.createdAt,
+    startedAt: game.startedAt,
+    finishedAt: game.finishedAt,
+    players: players.map((p) => ({
+      _id: p._id,
+      seatIndex: p.seatIndex,
+      displayName: p.displayName,
+      kind: p.kind,
+      userId: p.userId,
+      tokenBalance: p.tokenBalance,
+      isHostSeat: p.isHostSeat,
+      isCurrentUser: p.kind === 'user' && p.userId === identity.subject,
+    })),
+    currentRound,
+    deckRemaining: deckCards.length,
+  }
+}
+
 /**
  * Get game by join code (for players in the game)
  */
 export const getByJoinCode = query({
   args: { joinCode: v.string() },
-  returns: v.union(
-    v.object({
-      _id: v.id('games'),
-      hostUserId: v.string(),
-      isCurrentUserHost: v.boolean(),
-      joinCode: v.string(),
-      mode: gameModeValidator,
-      playlistId: v.id('playlists'),
-      playlistName: v.optional(v.string()),
-      useTokens: v.boolean(),
-      startingTokens: v.number(),
-      maxTokens: v.number(),
-      winCondition: v.number(),
-      phase: gamePhaseValidator,
-      currentTurnSeatIndex: v.number(),
-      winnerId: v.optional(v.id('gamePlayers')),
-      createdAt: v.number(),
-      startedAt: v.optional(v.number()),
-      finishedAt: v.optional(v.number()),
-      players: v.array(
-        v.object({
-          _id: v.id('gamePlayers'),
-          seatIndex: v.number(),
-          displayName: v.string(),
-          kind: v.union(v.literal('local'), v.literal('user')),
-          userId: v.optional(v.string()),
-          tokenBalance: v.number(),
-          isHostSeat: v.boolean(),
-          isCurrentUser: v.boolean(),
-        }),
-      ),
-      currentRound: v.optional(
-        v.object({
-          activePlayerId: v.id('gamePlayers'),
-          placementIndex: v.optional(v.number()),
-          bets: v.array(
-            v.object({
-              bettorPlayerId: v.id('gamePlayers'),
-              slotIndex: v.number(),
-            }),
-          ),
-          // Card details are only shown after reveal
-          card: v.optional(
-            v.object({
-              _id: v.id('gameCards'),
-              title: v.string(),
-              artistNames: v.array(v.string()),
-              releaseYear: v.number(),
-              imageUrl: v.optional(v.string()),
-            }),
-          ),
-        }),
-      ),
-      deckRemaining: v.number(),
-    }),
-    v.null(),
-  ),
+  returns: v.union(gameResponseValidator, v.null()),
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) {
@@ -676,112 +794,7 @@ export const getByJoinCode = query({
       return null
     }
 
-    // Get playlist name
-    const playlist = await ctx.db.get("playlists", game.playlistId)
-
-    // Get all players
-    const players = await ctx.db
-      .query('gamePlayers')
-      .withIndex('by_gameId', (q) => q.eq('gameId', game._id))
-      .collect()
-
-    players.sort((a, b) => a.seatIndex - b.seatIndex)
-
-    // Check if the current user is the host or a player
-    const isHost = game.hostUserId === identity.subject
-    const isPlayer = players.some(
-      (p) => p.kind === 'user' && p.userId === identity.subject,
-    )
-
-    // For host-only mode, host can always see everything
-    // For sidecars mode, need to be host or a player
-    if (!isHost && !isPlayer) {
-      return null
-    }
-
-    // Count remaining deck cards
-    const deckCards = await ctx.db
-      .query('gameCards')
-      .withIndex('by_gameId_and_state', (q) =>
-        q.eq('gameId', game._id).eq('state', 'deck'),
-      )
-      .collect()
-
-    // Build current round info
-    let currentRound:
-      | {
-          activePlayerId: Id<'gamePlayers'>
-          placementIndex?: number
-          bets: Array<{ bettorPlayerId: Id<'gamePlayers'>; slotIndex: number }>
-          card?: {
-            _id: Id<'gameCards'>
-            title: string
-            artistNames: Array<string>
-            releaseYear: number
-            imageUrl?: string
-          }
-        }
-      | undefined = undefined
-
-    if (game.currentRound) {
-      currentRound = {
-        activePlayerId: game.currentRound.activePlayerId,
-        placementIndex: game.currentRound.placementIndex,
-        bets: game.currentRound.bets.map((b) => ({
-          bettorPlayerId: b.bettorPlayerId,
-          slotIndex: b.slotIndex,
-        })),
-      }
-
-      // Only show card details after reveal
-      if (game.phase === 'revealed') {
-        const card = await ctx.db.get("gameCards", game.currentRound.cardId)
-        if (card) {
-          const track = await ctx.db.get("playlistTracks", card.trackId)
-          if (track) {
-            currentRound.card = {
-              _id: card._id,
-              title: track.title,
-              artistNames: track.artistNames,
-              releaseYear: track.releaseYear!,
-              imageUrl: track.imageUrl,
-            }
-          }
-        }
-      }
-    }
-
-    return {
-      _id: game._id,
-      hostUserId: game.hostUserId,
-      isCurrentUserHost: isHost,
-      joinCode: game.joinCode,
-      mode: game.mode,
-      playlistId: game.playlistId,
-      playlistName: playlist?.name,
-      useTokens: game.useTokens,
-      startingTokens: game.startingTokens,
-      maxTokens: game.maxTokens,
-      winCondition: game.winCondition,
-      phase: game.phase,
-      currentTurnSeatIndex: game.currentTurnSeatIndex,
-      winnerId: game.winnerId,
-      createdAt: game.createdAt,
-      startedAt: game.startedAt,
-      finishedAt: game.finishedAt,
-      players: players.map((p) => ({
-        _id: p._id,
-        seatIndex: p.seatIndex,
-        displayName: p.displayName,
-        kind: p.kind,
-        userId: p.userId,
-        tokenBalance: p.tokenBalance,
-        isHostSeat: p.isHostSeat,
-        isCurrentUser: p.kind === 'user' && p.userId === identity.subject,
-      })),
-      currentRound,
-      deckRemaining: deckCards.length,
-    }
+    return buildGameResponse(ctx, game, identity)
   },
 })
 
@@ -790,180 +803,19 @@ export const getByJoinCode = query({
  */
 export const get = query({
   args: { gameId: v.id('games') },
-  returns: v.union(
-    v.object({
-      _id: v.id('games'),
-      hostUserId: v.string(),
-      isCurrentUserHost: v.boolean(),
-      joinCode: v.string(),
-      mode: gameModeValidator,
-      playlistId: v.id('playlists'),
-      playlistName: v.optional(v.string()),
-      useTokens: v.boolean(),
-      startingTokens: v.number(),
-      maxTokens: v.number(),
-      winCondition: v.number(),
-      phase: gamePhaseValidator,
-      currentTurnSeatIndex: v.number(),
-      winnerId: v.optional(v.id('gamePlayers')),
-      createdAt: v.number(),
-      startedAt: v.optional(v.number()),
-      finishedAt: v.optional(v.number()),
-      players: v.array(
-        v.object({
-          _id: v.id('gamePlayers'),
-          seatIndex: v.number(),
-          displayName: v.string(),
-          kind: v.union(v.literal('local'), v.literal('user')),
-          userId: v.optional(v.string()),
-          tokenBalance: v.number(),
-          isHostSeat: v.boolean(),
-          isCurrentUser: v.boolean(),
-        }),
-      ),
-      currentRound: v.optional(
-        v.object({
-          activePlayerId: v.id('gamePlayers'),
-          placementIndex: v.optional(v.number()),
-          bets: v.array(
-            v.object({
-              bettorPlayerId: v.id('gamePlayers'),
-              slotIndex: v.number(),
-            }),
-          ),
-          // Card details are only shown after reveal
-          card: v.optional(
-            v.object({
-              _id: v.id('gameCards'),
-              title: v.string(),
-              artistNames: v.array(v.string()),
-              releaseYear: v.number(),
-              imageUrl: v.optional(v.string()),
-            }),
-          ),
-        }),
-      ),
-      deckRemaining: v.number(),
-    }),
-    v.null(),
-  ),
+  returns: v.union(gameResponseValidator, v.null()),
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity()
     if (!identity) {
       return null
     }
 
-    const game = await ctx.db.get("games", args.gameId)
+    const game = await ctx.db.get('games', args.gameId)
     if (!game) {
       return null
     }
 
-    // Get playlist name
-    const playlist = await ctx.db.get("playlists", game.playlistId)
-
-    // Get all players
-    const players = await ctx.db
-      .query('gamePlayers')
-      .withIndex('by_gameId', (q) => q.eq('gameId', args.gameId))
-      .collect()
-
-    players.sort((a, b) => a.seatIndex - b.seatIndex)
-
-    // Check if the current user is the host or a player
-    const isHost = game.hostUserId === identity.subject
-    const isPlayer = players.some(
-      (p) => p.kind === 'user' && p.userId === identity.subject,
-    )
-
-    // For host-only mode, host can always see everything
-    // For sidecars mode, need to be host or a player
-    if (!isHost && !isPlayer) {
-      return null
-    }
-
-    // Count remaining deck cards
-    const deckCards = await ctx.db
-      .query('gameCards')
-      .withIndex('by_gameId_and_state', (q) =>
-        q.eq('gameId', args.gameId).eq('state', 'deck'),
-      )
-      .collect()
-
-    // Build current round info
-    let currentRound:
-      | {
-          activePlayerId: Id<'gamePlayers'>
-          placementIndex?: number
-          bets: Array<{ bettorPlayerId: Id<'gamePlayers'>; slotIndex: number }>
-          card?: {
-            _id: Id<'gameCards'>
-            title: string
-            artistNames: Array<string>
-            releaseYear: number
-            imageUrl?: string
-          }
-        }
-      | undefined = undefined
-
-    if (game.currentRound) {
-      currentRound = {
-        activePlayerId: game.currentRound.activePlayerId,
-        placementIndex: game.currentRound.placementIndex,
-        bets: game.currentRound.bets.map((b) => ({
-          bettorPlayerId: b.bettorPlayerId,
-          slotIndex: b.slotIndex,
-        })),
-      }
-
-      // Only show card details after reveal
-      if (game.phase === 'revealed') {
-        const card = await ctx.db.get("gameCards", game.currentRound.cardId)
-        if (card) {
-          const track = await ctx.db.get("playlistTracks", card.trackId)
-          if (track) {
-            currentRound.card = {
-              _id: card._id,
-              title: track.title,
-              artistNames: track.artistNames,
-              releaseYear: track.releaseYear!,
-              imageUrl: track.imageUrl,
-            }
-          }
-        }
-      }
-    }
-
-    return {
-      _id: game._id,
-      hostUserId: game.hostUserId,
-      isCurrentUserHost: isHost,
-      joinCode: game.joinCode,
-      mode: game.mode,
-      playlistId: game.playlistId,
-      playlistName: playlist?.name,
-      useTokens: game.useTokens,
-      startingTokens: game.startingTokens,
-      maxTokens: game.maxTokens,
-      winCondition: game.winCondition,
-      phase: game.phase,
-      currentTurnSeatIndex: game.currentTurnSeatIndex,
-      winnerId: game.winnerId,
-      createdAt: game.createdAt,
-      startedAt: game.startedAt,
-      finishedAt: game.finishedAt,
-      players: players.map((p) => ({
-        _id: p._id,
-        seatIndex: p.seatIndex,
-        displayName: p.displayName,
-        kind: p.kind,
-        userId: p.userId,
-        tokenBalance: p.tokenBalance,
-        isHostSeat: p.isHostSeat,
-        isCurrentUser: p.kind === 'user' && p.userId === identity.subject,
-      })),
-      currentRound,
-      deckRemaining: deckCards.length,
-    }
+    return buildGameResponse(ctx, game, identity)
   },
 })
 
