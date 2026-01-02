@@ -349,5 +349,3 @@ export type {
   Storefront,
   With,
 } from './types.gen'
-
-export * from './zod.gen'

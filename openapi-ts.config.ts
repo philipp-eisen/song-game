@@ -1,7 +1,7 @@
 import { defineConfig } from '@hey-api/openapi-ts'
 
 export default defineConfig({
-  input: './apple-music-openapi.yaml',
+  input: 'https://applemusicapi.obrhoff.de/openapi.yaml',
   output: {
     path: 'src/generated/apple-music',
     format: 'prettier',
