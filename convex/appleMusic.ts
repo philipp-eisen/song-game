@@ -1,8 +1,10 @@
 'use node'
 
+import { ActionCache } from '@convex-dev/action-cache'
 import { v } from 'convex/values'
 import { action, internalAction } from './_generated/server'
-import { internal } from './_generated/api'
+import { components, internal } from './_generated/api'
+import type { ActionCtx } from './_generated/server'
 import type {
   Artwork,
   PlaylistRelationship,
@@ -18,69 +20,66 @@ import type {
 const APPLE_MUSIC_API_BASE = 'https://api.music.apple.com/v1'
 const DEFAULT_STOREFRONT = 'us'
 
-// Token cache (in-memory, regenerated on cold start)
-let cachedToken: { token: string; expiresAt: number } | null = null
-
 // ===========================================
-// JWT Generation for Developer Token
+// JWT Generation for Developer Token (Cached)
 // ===========================================
 
 /**
- * Generate an Apple Music Developer Token (JWT)
+ * Internal action to generate an Apple Music Developer Token (JWT)
  * Uses ES256 algorithm with the MusicKit private key
+ * This is wrapped by ActionCache for persistent caching
  */
-async function generateDeveloperToken(): Promise<string> {
-  const now = Date.now()
+export const generateDeveloperTokenInternal = internalAction({
+  args: {},
+  returns: v.string(),
+  handler: async (): Promise<string> => {
+    const teamId = process.env.APPLE_TEAM_ID
+    const keyId = process.env.APPLE_KEY_ID
+    const privateKey = process.env.APPLE_PRIVATE_KEY
 
-  // Return cached token if still valid (with 5 min buffer)
-  if (cachedToken && cachedToken.expiresAt > now + 5 * 60 * 1000) {
-    return cachedToken.token
-  }
+    if (!teamId || !keyId || !privateKey) {
+      throw new Error(
+        'Missing Apple Music credentials. Please set APPLE_TEAM_ID, APPLE_KEY_ID, and APPLE_PRIVATE_KEY environment variables.',
+      )
+    }
 
-  const teamId = process.env.APPLE_TEAM_ID
-  const keyId = process.env.APPLE_KEY_ID
-  const privateKey = process.env.APPLE_PRIVATE_KEY
+    // Dynamic import for jsonwebtoken (Node.js module)
+    const jwt = await import('jsonwebtoken')
 
-  if (!teamId || !keyId || !privateKey) {
-    throw new Error(
-      'Missing Apple Music credentials. Please set APPLE_TEAM_ID, APPLE_KEY_ID, and APPLE_PRIVATE_KEY environment variables.',
-    )
-  }
+    const token = jwt.default.sign({}, privateKey, {
+      algorithm: 'ES256',
+      expiresIn: '14d',
+      issuer: teamId,
+      header: {
+        alg: 'ES256',
+        kid: keyId,
+      },
+    })
 
-  // Dynamic import for jsonwebtoken (Node.js module)
-  const jwt = await import('jsonwebtoken')
+    console.log('[Apple Music] Generated new developer token')
+    return token
+  },
+})
 
-  const issuedAt = Math.floor(now / 1000)
-  // Token valid for 6 months (maximum allowed)
-  const expiresAt = issuedAt + 60 * 60 * 24 * 180
-
-  const token = jwt.default.sign({}, privateKey, {
-    algorithm: 'ES256',
-    expiresIn: '180d',
-    issuer: teamId,
-    header: {
-      alg: 'ES256',
-      kid: keyId,
-    },
-  })
-
-  // Cache the token
-  cachedToken = {
-    token,
-    expiresAt: expiresAt * 1000,
-  }
-
-  return token
-}
+/**
+ * ActionCache for Apple Music developer token
+ * Token is valid for 14 days, we cache for 7 days to allow for periodic refresh
+ */
+const tokenCache = new ActionCache(components.actionCache, {
+  action: internal.appleMusic.generateDeveloperTokenInternal,
+  name: 'apple-music-token-v1',
+  ttl: 1000 * 60 * 60 * 24 * 7, // 7 days
+})
 
 /**
  * Make an authenticated request to the Apple Music API
  */
 async function appleMusicFetch<T>(
+  ctx: ActionCtx,
   endpoint: string,
   options?: RequestInit,
 ): Promise<T> {
-  const token = await generateDeveloperToken()
+  const token = await tokenCache.fetch(ctx, {})
 
   const response = await fetch(`${APPLE_MUSIC_API_BASE}${endpoint}`, {
     ...options,
@@ -149,11 +148,12 @@ export const searchByISRC = internalAction({
     }),
     v.null(),
   ),
-  handler: async (_, args) => {
+  handler: async (ctx, args) => {
     const storefront = args.storefront ?? DEFAULT_STOREFRONT
 
     try {
       const response = await appleMusicFetch<SongRelationship>(
+        ctx,
         `/catalog/${storefront}/songs?filter[isrc]=${args.isrc}`,
       )
 
@@ -205,12 +205,13 @@ export const searchCatalog = internalAction({
       durationMs: v.number(),
     }),
   ),
-  handler: async (_, args) => {
+  handler: async (ctx, args) => {
     const storefront = args.storefront ?? DEFAULT_STOREFRONT
     const limit = args.limit ?? 10
 
     const encodedQuery = encodeURIComponent(args.query)
     const response = await appleMusicFetch<SearchResponse>(
+      ctx,
       `/catalog/${storefront}/search?term=${encodedQuery}&types=songs&limit=${limit}`,
     )
 
@@ -262,11 +263,12 @@ export const getPlaylist = internalAction({
     }),
     v.null(),
   ),
-  handler: async (_, args) => {
+  handler: async (ctx, args) => {
     const storefront = args.storefront ?? DEFAULT_STOREFRONT
 
     try {
       const response = await appleMusicFetch<PlaylistRelationship>(
+        ctx,
         `/catalog/${storefront}/playlists/${args.playlistId}?include=tracks`,
       )
 
