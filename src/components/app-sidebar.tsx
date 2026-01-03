@@ -1,10 +1,10 @@
 import {
   CaretUpDownIcon,
   GameControllerIcon,
+  GoogleLogoIcon,
   HouseIcon,
   PlaylistIcon,
   SignOutIcon,
-  SpotifyLogoIcon,
 } from '@phosphor-icons/react'
 import { Link } from '@tanstack/react-router'
 import type { Icon } from '@phosphor-icons/react'
@@ -123,11 +123,10 @@ function UserMenu() {
         <SidebarMenuItem>
           <SidebarMenuButton
             size="lg"
-            onClick={() => authClient.signIn.social({ provider: 'spotify' })}
-            className="bg-spotify/10 hover:bg-spotify/20"
+            onClick={() => authClient.signIn.social({ provider: 'google' })}
           >
-            <SpotifyLogoIcon weight="duotone" className="size-5 text-spotify" />
-            <span className="font-medium">Sign in with Spotify</span>
+            <GoogleLogoIcon weight="duotone" className="size-5" />
+            <span className="font-medium">Sign in with Google</span>
           </SidebarMenuButton>
         </SidebarMenuItem>
       </SidebarMenu>
@@ -210,11 +209,11 @@ function UserMenu() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={() =>
-                    authClient.signIn.social({ provider: 'spotify' })
+                    authClient.signIn.social({ provider: 'google' })
                   }
                 >
-                  <SpotifyLogoIcon weight="duotone" className="text-spotify" />
-                  Upgrade to Spotify
+                  <GoogleLogoIcon weight="duotone" />
+                  Upgrade to Google
                 </DropdownMenuItem>
               </>
             )}

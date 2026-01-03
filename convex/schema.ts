@@ -25,7 +25,7 @@ const cardStateValidator = v.union(
 // Player seat types
 const playerKindValidator = v.union(
   v.literal('local'), // Host-controlled local seat
-  v.literal('user'), // Authenticated user (Spotify or guest)
+  v.literal('user'), // Authenticated user (Google or guest)
 )
 
 // Bet record for current round

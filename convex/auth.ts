@@ -21,28 +21,26 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
   return betterAuth({
     baseURL: siteUrl,
     database: authComponent.adapter(ctx),
+    account: {
+      accountLinking: {
+        enabled: true,
+        trustedProviders: ['google'],
+      },
+    },
     // Email/password only enabled in local development
     emailAndPassword: {
       enabled: false,
     },
     socialProviders: {
-      spotify: {
-        clientId: process.env.SPOTIFY_CLIENT_ID as string,
-        clientSecret: process.env.SPOTIFY_CLIENT_SECRET as string,
-        // Request streaming scopes for Web Playback SDK
-        scope: [
-          'user-read-email',
-          'user-read-private',
-          'streaming',
-          'user-modify-playback-state',
-          'user-read-playback-state',
-        ],
+      google: {
+        clientId: process.env.GOOGLE_CLIENT_ID as string,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
       },
     },
     plugins: [
       // The Convex plugin is required for Convex compatibility
       convex({ authConfig }),
-      // Anonymous plugin for guest sign-in (sidecar players joining without Spotify)
+      // Anonymous plugin for guest sign-in (players joining without a full account)
       anonymous({
         emailDomainName: 'guest.songgame.local',
       }),
