@@ -2,7 +2,7 @@ import { Link, createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { useMutation } from 'convex/react'
 import { useState } from 'react'
-import { ArrowsClockwiseIcon, SpotifyLogoIcon } from '@phosphor-icons/react'
+import { ArrowsClockwiseIcon, GoogleLogoIcon } from '@phosphor-icons/react'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { listMyPlaylistsQuery } from '@/lib/convex-queries'
@@ -161,17 +161,17 @@ function LoginCTA({ isGuest }: LoginCTAProps) {
           {isGuest ? 'Upgrade to Create Games' : 'Want to host your own game?'}
         </CardTitle>
         <CardDescription className="text-base">
-          Sign in with Spotify to create games for your friends
+          Sign in with Google to create games for your friends
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col items-center gap-3">
         <Button
-          onClick={() => authClient.signIn.social({ provider: 'spotify' })}
-          className="w-full max-w-xs bg-spotify text-spotify-foreground hover:bg-spotify/90"
+          onClick={() => authClient.signIn.social({ provider: 'google' })}
+          className="w-full max-w-xs"
           size="lg"
         >
-          <SpotifyLogoIcon weight="duotone" className="mr-2 h-5 w-5" />
-          Sign in with Spotify
+          <GoogleLogoIcon weight="duotone" className="mr-2 h-5 w-5" />
+          Sign in with Google
         </Button>
         {!isGuest && (
           <p className="text-center text-xs text-muted-foreground">
@@ -391,7 +391,7 @@ function CreateGameSection() {
         {mode === 'sidecars' && (
           <p className="text-sm text-muted-foreground">
             Other players will join using the game code. They can sign in with
-            Spotify or continue as guests.
+            Google or continue as guests.
           </p>
         )}
 

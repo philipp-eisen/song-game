@@ -4,6 +4,7 @@ import { SpotifyApi } from '@spotify/web-api-ts-sdk'
 import { v } from 'convex/values'
 import { action } from './_generated/server'
 import { internal } from './_generated/api'
+import { env } from './env'
 import type { PlaylistedTrack } from '@spotify/web-api-ts-sdk'
 import type { Id } from './_generated/dataModel'
 
@@ -50,18 +51,11 @@ function parseSpotifyPlaylistId(input: string): string {
  * @see https://developer.spotify.com/documentation/web-api/tutorials/client-credentials-flow
  */
 async function getClientCredentialsToken(): Promise<string> {
-  const clientId = process.env.SPOTIFY_CLIENT_ID
-  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET
-
-  if (!clientId || !clientSecret) {
-    throw new Error('Missing Spotify client credentials in environment')
-  }
-
   const response = await fetch('https://accounts.spotify.com/api/token', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
-      Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
+      Authorization: `Basic ${Buffer.from(`${env.SPOTIFY_CLIENT_ID}:${env.SPOTIFY_CLIENT_SECRET}`).toString('base64')}`,
     },
     body: new URLSearchParams({
       grant_type: 'client_credentials',
@@ -83,13 +77,8 @@ async function getClientCredentialsToken(): Promise<string> {
  * Create an authenticated Spotify SDK instance using an access token
  */
 function createSpotifySdk(accessToken: string): SpotifyApi {
-  const clientId = process.env.SPOTIFY_CLIENT_ID
-  if (!clientId) {
-    throw new Error('Missing SPOTIFY_CLIENT_ID environment variable')
-  }
-
   // Create SDK with the access token
-  return SpotifyApi.withAccessToken(clientId, {
+  return SpotifyApi.withAccessToken(env.SPOTIFY_CLIENT_ID, {
     access_token: accessToken,
     token_type: 'Bearer',
     expires_in: 3600,

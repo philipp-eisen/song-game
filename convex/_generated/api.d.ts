@@ -10,6 +10,7 @@
 
 import type * as appleMusic from "../appleMusic.js";
 import type * as auth from "../auth.js";
+import type * as env from "../env.js";
 import type * as games from "../games.js";
 import type * as http from "../http.js";
 import type * as playlistImport from "../playlistImport.js";
@@ -29,6 +30,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   appleMusic: typeof appleMusic;
   auth: typeof auth;
+  env: typeof env;
   games: typeof games;
   http: typeof http;
   playlistImport: typeof playlistImport;

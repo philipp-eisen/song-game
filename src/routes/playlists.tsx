@@ -289,7 +289,10 @@ function PlaylistItem({ playlist }: { playlist: PlaylistData }) {
                     {playlist.unmatchedTracks} unmatched
                   </Badge>
                 ) : null}
-                <Badge variant="outline" className="gap-1 text-muted-foreground">
+                <Badge
+                  variant="outline"
+                  className="gap-1 text-muted-foreground"
+                >
                   <ArrowsClockwiseIcon
                     weight="duotone"
                     className="size-3 animate-spin"
@@ -322,8 +325,8 @@ function PlaylistItem({ playlist }: { playlist: PlaylistData }) {
                   <XCircleIcon weight="duotone" />
                   <AlertTitle>Import failed</AlertTitle>
                   <AlertDescription>
-                    Try importing the playlist again. If it keeps failing, double
-                    check the playlist URL/ID.
+                    Try importing the playlist again. If it keeps failing,
+                    double check the playlist URL/ID.
                   </AlertDescription>
                 </Alert>
               </div>

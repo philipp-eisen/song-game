@@ -4,6 +4,7 @@ import { ActionCache } from '@convex-dev/action-cache'
 import { v } from 'convex/values'
 import { action, internalAction } from './_generated/server'
 import { components, internal } from './_generated/api'
+import { env } from './env'
 import type { ActionCtx } from './_generated/server'
 import type {
   Artwork,
@@ -33,26 +34,16 @@ export const generateDeveloperTokenInternal = internalAction({
   args: {},
   returns: v.string(),
   handler: async (): Promise<string> => {
-    const teamId = process.env.APPLE_TEAM_ID
-    const keyId = process.env.APPLE_KEY_ID
-    const privateKey = process.env.APPLE_PRIVATE_KEY
-
-    if (!teamId || !keyId || !privateKey) {
-      throw new Error(
-        'Missing Apple Music credentials. Please set APPLE_TEAM_ID, APPLE_KEY_ID, and APPLE_PRIVATE_KEY environment variables.',
-      )
-    }
-
     // Dynamic import for jsonwebtoken (Node.js module)
     const jwt = await import('jsonwebtoken')
 
-    const token = jwt.default.sign({}, privateKey, {
+    const token = jwt.default.sign({}, env.APPLE_PRIVATE_KEY, {
       algorithm: 'ES256',
       expiresIn: '14d',
-      issuer: teamId,
+      issuer: env.APPLE_TEAM_ID,
       header: {
         alg: 'ES256',
-        kid: keyId,
+        kid: env.APPLE_KEY_ID,
       },
     })
 
