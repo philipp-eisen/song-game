@@ -2,7 +2,10 @@
 alwaysApply: true
 ---
 
-Always run tsc and lint after you made changes.
+- Always run tsc and lint after you made changes.
+- Always create small components in the components directory don't implement everything in one file
+  in a route.
+- To use env file declare them in the env.ts in convex and us the variable exported there
 
 ## Icon Naming Convention
 
