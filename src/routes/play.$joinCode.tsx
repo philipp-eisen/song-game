@@ -47,8 +47,7 @@ function GamePage() {
     // - Already in the game
     // - Already attempting/attempted join
     // - Session is still loading
-    // - Not authenticated
-    if (game || isJoining || hasAttemptedJoin || isSessionPending || !session) {
+    if (game || isJoining || hasAttemptedJoin || isSessionPending) {
       return
     }
 
@@ -56,6 +55,10 @@ function GamePage() {
       setIsJoining(true)
       setJoinError(null)
       try {
+        // If not logged in, sign in as anonymous first
+        if (!session) {
+          await authClient.signIn.anonymous()
+        }
         await joinByCode({ joinCode: joinCode.toUpperCase() })
         // Success! The query will automatically update and show the game
       } catch (err) {
