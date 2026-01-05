@@ -235,6 +235,49 @@ async function advanceTurn(ctx: MutationCtx, game: Game): Promise<number> {
   return nextSeatIndex
 }
 
+/**
+ * Determine a winner at the end of a full round (all players have taken a turn).
+ *
+ * Rules:
+ * - Only evaluate at end-of-round.
+ * - A winner exists only if there is a single leader whose timeline size is
+ *   >= winCondition.
+ * - If there's a tie for the lead (including ties at/above winCondition),
+ *   there is no winner yet and play continues.
+ */
+async function determineRoundWinner(
+  ctx: MutationCtx,
+  game: Game,
+): Promise<Id<'gamePlayers'> | undefined> {
+  const allPlayers = await ctx.db
+    .query('gamePlayers')
+    .withIndex('by_gameId', (q) => q.eq('gameId', game._id))
+    .collect()
+
+  const scores = await Promise.all(
+    allPlayers.map(async (player) => {
+      const timelineEntries = await ctx.db
+        .query('timelineEntries')
+        .withIndex('by_playerId', (q) => q.eq('playerId', player._id))
+        .collect()
+
+      return { playerId: player._id, size: timelineEntries.length }
+    }),
+  )
+
+  const maxSize = scores.reduce((max, s) => Math.max(max, s.size), 0)
+  if (maxSize < game.winCondition) {
+    return undefined
+  }
+
+  const leaders = scores.filter((s) => s.size === maxSize)
+  if (leaders.length !== 1) {
+    return undefined
+  }
+
+  return leaders[0].playerId
+}
+
 // ===========================================
 // Turn Mutations
 // ===========================================
@@ -778,29 +821,15 @@ export const resolveRound = mutation({
       }
     }
 
-    // Check win condition
-    let winnerId: Id<'gamePlayers'> | undefined
-
-    // Get all players and check timeline sizes
-    const allPlayers = await ctx.db
-      .query('gamePlayers')
-      .withIndex('by_gameId', (q) => q.eq('gameId', game._id))
-      .collect()
-
-    for (const player of allPlayers) {
-      const playerTimeline = await ctx.db
-        .query('timelineEntries')
-        .withIndex('by_playerId', (q) => q.eq('playerId', player._id))
-        .collect()
-
-      if (playerTimeline.length >= game.winCondition) {
-        winnerId = player._id
-        break
-      }
-    }
-
     // Advance turn
     const nextSeatIndex = await advanceTurn(ctx, game)
+
+    // Check win condition (end-of-round only)
+    let winnerId: Id<'gamePlayers'> | undefined
+    const isEndOfRound = nextSeatIndex === 0
+    if (isEndOfRound) {
+      winnerId = await determineRoundWinner(ctx, game)
+    }
 
     if (winnerId) {
       // Game over
@@ -893,19 +922,8 @@ export const tradeTokensForCard = mutation({
       insertIndex,
     )
 
-    // Check win condition
-    const newTimeline = await ctx.db
-      .query('timelineEntries')
-      .withIndex('by_playerId', (q) => q.eq('playerId', activePlayer._id))
-      .collect()
-
-    if (newTimeline.length >= game.winCondition) {
-      await ctx.db.patch('games', args.gameId, {
-        phase: 'finished',
-        winnerId: activePlayer._id,
-        finishedAt: Date.now(),
-      })
-    }
+    // Winner is no longer declared immediately upon reaching winCondition.
+    // It is determined at the end of a full round from `resolveRound`.
 
     return {
       cardId: card._id,
