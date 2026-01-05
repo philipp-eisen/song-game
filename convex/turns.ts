@@ -12,6 +12,8 @@ type Game = Doc<'games'>
 type GameCard = Doc<'gameCards'>
 type TimelineEntry = Doc<'timelineEntries'>
 
+type EndgameState = Game['endgameState']
+
 // ===========================================
 // Authorization helpers
 // ===========================================
@@ -62,6 +64,101 @@ async function getActivePlayer(
   }
 
   return player
+}
+
+// ===========================================
+// Endgame helpers
+// ===========================================
+
+function getTiebreakContenderIds(
+  game: Game,
+): Array<Id<'gamePlayers'>> | undefined {
+  const state = game.endgameState
+  if (!state) return undefined
+  if (state.type !== 'tiebreak') return undefined
+  return state.contenderPlayerIds
+}
+
+function assertEligibleInTiebreak(game: Game, playerId: Id<'gamePlayers'>) {
+  const contenders = getTiebreakContenderIds(game)
+  if (!contenders) return
+  if (!contenders.includes(playerId)) {
+    throw new Error('Only tied players can act during the tiebreak')
+  }
+}
+
+async function getPlayersBySeat(
+  ctx: MutationCtx,
+  gameId: Id<'games'>,
+): Promise<Array<GamePlayer>> {
+  const players = await ctx.db
+    .query('gamePlayers')
+    .withIndex('by_gameId', (q) => q.eq('gameId', gameId))
+    .collect()
+
+  players.sort((a, b) => a.seatIndex - b.seatIndex)
+
+  return players
+}
+
+async function getTimelineSizesByPlayer(
+  ctx: MutationCtx,
+  playerIds: Array<Id<'gamePlayers'>>,
+): Promise<Map<Id<'gamePlayers'>, number>> {
+  const sizes = new Map<Id<'gamePlayers'>, number>()
+  for (const playerId of playerIds) {
+    const entries = await ctx.db
+      .query('timelineEntries')
+      .withIndex('by_playerId', (q) => q.eq('playerId', playerId))
+      .collect()
+    sizes.set(playerId, entries.length)
+  }
+  return sizes
+}
+
+function getLeaders(
+  playerIds: Array<Id<'gamePlayers'>>,
+  sizesByPlayer: Map<Id<'gamePlayers'>, number>,
+): Array<Id<'gamePlayers'>> {
+  let max = -Infinity
+  for (const id of playerIds) {
+    const size = sizesByPlayer.get(id) ?? 0
+    if (size > max) max = size
+  }
+  return playerIds.filter((id) => (sizesByPlayer.get(id) ?? 0) === max)
+}
+
+function haveSameIds(
+  a: Array<Id<'gamePlayers'>>,
+  b: Array<Id<'gamePlayers'>>,
+): boolean {
+  if (a.length !== b.length) return false
+  const as = [...a].map(String).sort()
+  const bs = [...b].map(String).sort()
+  for (let i = 0; i < as.length; i++) {
+    if (as[i] !== bs[i]) return false
+  }
+  return true
+}
+
+function findNextSeatIndex(
+  playersBySeat: Array<GamePlayer>,
+  fromSeatIndex: number,
+  eligiblePlayerIds?: Set<Id<'gamePlayers'>>,
+): number {
+  if (playersBySeat.length === 0) {
+    throw new Error('No players in game')
+  }
+
+  for (let step = 1; step <= playersBySeat.length; step++) {
+    const seatIndex = (fromSeatIndex + step) % playersBySeat.length
+    const player = playersBySeat[seatIndex]
+    if (!eligiblePlayerIds || eligiblePlayerIds.has(player._id)) {
+      return seatIndex
+    }
+  }
+
+  throw new Error('No eligible players to advance turn')
 }
 
 // ===========================================
@@ -222,19 +319,6 @@ async function drawNextCard(
   return deckCards[0]
 }
 
-/**
- * Advance to the next player's turn
- */
-async function advanceTurn(ctx: MutationCtx, game: Game): Promise<number> {
-  const players = await ctx.db
-    .query('gamePlayers')
-    .withIndex('by_gameId', (q) => q.eq('gameId', game._id))
-    .collect()
-
-  const nextSeatIndex = (game.currentTurnSeatIndex + 1) % players.length
-  return nextSeatIndex
-}
-
 // ===========================================
 // Turn Mutations
 // ===========================================
@@ -263,6 +347,8 @@ export const startRound = mutation({
       throw new Error('Not your turn')
     }
 
+    assertEligibleInTiebreak(game, activePlayer._id)
+
     await verifyCanActForPlayer(ctx, game, activePlayer)
 
     // Draw next card
@@ -271,6 +357,7 @@ export const startRound = mutation({
       // No more cards - game ends in a draw (or we could end based on highest timeline)
       await ctx.db.patch('games', args.gameId, {
         phase: 'finished',
+        endgameState: undefined,
         finishedAt: Date.now(),
       })
       return null
@@ -331,6 +418,8 @@ export const skipRound = mutation({
       throw new Error('Not your turn')
     }
 
+    assertEligibleInTiebreak(game, activePlayer._id)
+
     await verifyCanActForPlayer(ctx, game, activePlayer)
 
     if (activePlayer.tokenBalance < 1) {
@@ -353,6 +442,7 @@ export const skipRound = mutation({
       // No more cards - end game
       await ctx.db.patch('games', args.gameId, {
         phase: 'finished',
+        endgameState: undefined,
         finishedAt: Date.now(),
       })
       return null
@@ -410,6 +500,8 @@ export const placeCard = mutation({
       throw new Error('Not your turn')
     }
 
+    assertEligibleInTiebreak(game, activePlayer._id)
+
     await verifyCanActForPlayer(ctx, game, activePlayer)
 
     // Validate insert index is within bounds
@@ -465,6 +557,8 @@ export const placeBet = mutation({
     if (!bettorPlayer) {
       throw new Error('Player not found')
     }
+
+    assertEligibleInTiebreak(game, bettorPlayer._id)
 
     await verifyCanActForPlayer(ctx, game, bettorPlayer)
 
@@ -570,6 +664,7 @@ export const revealCard = mutation({
       if (!activePlayer) {
         throw new Error('Active player not found')
       }
+      assertEligibleInTiebreak(game, activePlayer._id)
       await verifyCanActForPlayer(ctx, game, activePlayer)
     }
 
@@ -614,6 +709,8 @@ export const claimGuessToken = mutation({
     if (!player) {
       throw new Error('Player not found')
     }
+
+    assertEligibleInTiebreak(game, player._id)
 
     await verifyCanActForPlayer(ctx, game, player)
 
@@ -695,6 +792,9 @@ export const resolveRound = mutation({
     if (!activePlayer) {
       throw new Error('Active player not found')
     }
+
+    // In tiebreak mode, only tied players can continue playing
+    assertEligibleInTiebreak(game, activePlayer._id)
 
     const card = await ctx.db.get('gameCards', game.currentRound.cardId)
     if (!card) {
@@ -778,44 +878,91 @@ export const resolveRound = mutation({
       }
     }
 
-    // Check win condition
+    // Determine endgame/winner state (round-aware + tiebreak)
+    const playersBySeat = await getPlayersBySeat(ctx, game._id)
+    const allPlayerIds = playersBySeat.map((p) => p._id)
+    const timelineSizes = await getTimelineSizesByPlayer(ctx, allPlayerIds)
+
     let winnerId: Id<'gamePlayers'> | undefined
+    let endgameState: EndgameState | undefined = game.endgameState
 
-    // Get all players and check timeline sizes
-    const allPlayers = await ctx.db
-      .query('gamePlayers')
-      .withIndex('by_gameId', (q) => q.eq('gameId', game._id))
-      .collect()
-
-    for (const player of allPlayers) {
-      const playerTimeline = await ctx.db
-        .query('timelineEntries')
-        .withIndex('by_playerId', (q) => q.eq('playerId', player._id))
-        .collect()
-
-      if (playerTimeline.length >= game.winCondition) {
-        winnerId = player._id
-        break
+    // If we haven't started the final round yet, and someone reached the win condition,
+    // mark the current seat as the point where the final round ends.
+    if (!endgameState) {
+      const someoneReachedWinCondition = allPlayerIds.some(
+        (id) => (timelineSizes.get(id) ?? 0) >= game.winCondition,
+      )
+      if (someoneReachedWinCondition) {
+        endgameState = {
+          type: 'finalRound',
+          endsAtSeatIndex: game.currentTurnSeatIndex,
+        }
       }
     }
 
-    // Advance turn
-    const nextSeatIndex = await advanceTurn(ctx, game)
+    // Default: advance to the next seat (skipping non-contenders in tiebreak mode)
+    const eligibleForNextTurn =
+      endgameState?.type === 'tiebreak'
+        ? new Set(endgameState.contenderPlayerIds)
+        : undefined
+    let nextSeatIndex = findNextSeatIndex(
+      playersBySeat,
+      game.currentTurnSeatIndex,
+      eligibleForNextTurn,
+    )
+
+    // If we're in tiebreak mode, end immediately when a single leader emerges.
+    if (endgameState?.type === 'tiebreak') {
+      const leaders = getLeaders(endgameState.contenderPlayerIds, timelineSizes)
+      if (leaders.length === 1) {
+        winnerId = leaders[0]
+        endgameState = undefined
+      } else {
+        // Narrow contenders to the current leaders (e.g. 3-way tie -> 2-way tie)
+        if (!haveSameIds(leaders, endgameState.contenderPlayerIds)) {
+          endgameState = { type: 'tiebreak', contenderPlayerIds: leaders }
+        }
+        nextSeatIndex = findNextSeatIndex(
+          playersBySeat,
+          game.currentTurnSeatIndex,
+          new Set(leaders),
+        )
+      }
+    }
+
+    // If we're in final-round mode, decide winner only once the turn order comes
+    // back around to the triggering seat.
+    if (endgameState?.type === 'finalRound') {
+      if (nextSeatIndex === endgameState.endsAtSeatIndex) {
+        const leaders = getLeaders(allPlayerIds, timelineSizes)
+        if (leaders.length === 1) {
+          winnerId = leaders[0]
+          endgameState = undefined
+        } else {
+          endgameState = { type: 'tiebreak', contenderPlayerIds: leaders }
+          nextSeatIndex = findNextSeatIndex(
+            playersBySeat,
+            game.currentTurnSeatIndex,
+            new Set(leaders),
+          )
+        }
+      }
+    }
 
     if (winnerId) {
-      // Game over
       await ctx.db.patch('games', args.gameId, {
         phase: 'finished',
         currentRound: undefined,
+        endgameState: undefined,
         winnerId,
         finishedAt: Date.now(),
       })
     } else {
-      // Continue to next turn
       await ctx.db.patch('games', args.gameId, {
         phase: 'awaitingStart',
         currentTurnSeatIndex: nextSeatIndex,
         currentRound: undefined,
+        endgameState,
       })
     }
 
@@ -860,6 +1007,8 @@ export const tradeTokensForCard = mutation({
       throw new Error('Not your turn')
     }
 
+    assertEligibleInTiebreak(game, activePlayer._id)
+
     await verifyCanActForPlayer(ctx, game, activePlayer)
 
     if (activePlayer.tokenBalance < 3) {
@@ -893,17 +1042,46 @@ export const tradeTokensForCard = mutation({
       insertIndex,
     )
 
-    // Check win condition
-    const newTimeline = await ctx.db
-      .query('timelineEntries')
-      .withIndex('by_playerId', (q) => q.eq('playerId', activePlayer._id))
-      .collect()
+    // Endgame/winner updates
+    const playersBySeat = await getPlayersBySeat(ctx, game._id)
+    const allPlayerIds = playersBySeat.map((p) => p._id)
+    const timelineSizes = await getTimelineSizesByPlayer(ctx, allPlayerIds)
 
-    if (newTimeline.length >= game.winCondition) {
+    let endgameState: EndgameState | undefined = game.endgameState
+    let winnerId: Id<'gamePlayers'> | undefined
+
+    if (!endgameState) {
+      const someoneReachedWinCondition = allPlayerIds.some(
+        (id) => (timelineSizes.get(id) ?? 0) >= game.winCondition,
+      )
+      if (someoneReachedWinCondition) {
+        endgameState = {
+          type: 'finalRound',
+          endsAtSeatIndex: game.currentTurnSeatIndex,
+        }
+      }
+    }
+
+    if (endgameState?.type === 'tiebreak') {
+      const leaders = getLeaders(endgameState.contenderPlayerIds, timelineSizes)
+      if (leaders.length === 1) {
+        winnerId = leaders[0]
+        endgameState = undefined
+      } else if (!haveSameIds(leaders, endgameState.contenderPlayerIds)) {
+        endgameState = { type: 'tiebreak', contenderPlayerIds: leaders }
+      }
+    }
+
+    if (winnerId) {
       await ctx.db.patch('games', args.gameId, {
         phase: 'finished',
-        winnerId: activePlayer._id,
+        endgameState: undefined,
+        winnerId,
         finishedAt: Date.now(),
+      })
+    } else {
+      await ctx.db.patch('games', args.gameId, {
+        endgameState,
       })
     }
 

@@ -612,6 +612,18 @@ const gameResponseValidator = v.object({
   winCondition: v.number(),
   phase: gamePhaseValidator,
   currentTurnSeatIndex: v.number(),
+  endgameState: v.optional(
+    v.union(
+      v.object({
+        type: v.literal('finalRound'),
+        endsAtSeatIndex: v.number(),
+      }),
+      v.object({
+        type: v.literal('tiebreak'),
+        contenderPlayerIds: v.array(v.id('gamePlayers')),
+      }),
+    ),
+  ),
   winnerId: v.optional(v.id('gamePlayers')),
   createdAt: v.number(),
   startedAt: v.optional(v.number()),
@@ -751,6 +763,7 @@ async function buildGameResponse(
     winCondition: game.winCondition,
     phase: game.phase,
     currentTurnSeatIndex: game.currentTurnSeatIndex,
+    endgameState: game.endgameState,
     winnerId: game.winnerId,
     createdAt: game.createdAt,
     startedAt: game.startedAt,

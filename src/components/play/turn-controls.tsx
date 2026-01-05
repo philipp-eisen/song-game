@@ -28,6 +28,17 @@ export function TurnControls({
   const tradeTokensForCard = useMutation(api.turns.tradeTokensForCard)
   const claimGuessToken = useMutation(api.turns.claimGuessToken)
 
+  const myPlayer = game.players.find((p) => p.isCurrentUser)
+  const tiebreakContenderIds =
+    game.endgameState?.type === 'tiebreak'
+      ? game.endgameState.contenderPlayerIds
+      : undefined
+  const canParticipateInTiebreak = !tiebreakContenderIds
+    ? true
+    : myPlayer
+      ? tiebreakContenderIds.includes(myPlayer._id)
+      : false
+
   const handleAction = async (action: () => Promise<unknown>) => {
     setError(null)
     setLoading(true)
@@ -109,8 +120,7 @@ export function TurnControls({
 
   // awaitingPlacement phase - betting for non-active players
   if (game.phase === 'awaitingPlacement' && !isActivePlayer && game.useTokens) {
-    const myPlayer = game.players.find((p) => p.isCurrentUser)
-    if (myPlayer && myPlayer.tokenBalance >= 1) {
+    if (myPlayer && myPlayer.tokenBalance >= 1 && canParticipateInTiebreak) {
       return (
         <div className="space-y-4">
           <p>{activePlayer.displayName} is placing their card...</p>
@@ -150,8 +160,7 @@ export function TurnControls({
     }
     // Non-active players can still bet
     if (game.useTokens) {
-      const myPlayer = game.players.find((p) => p.isCurrentUser)
-      if (myPlayer && myPlayer.tokenBalance >= 1) {
+      if (myPlayer && myPlayer.tokenBalance >= 1 && canParticipateInTiebreak) {
         return (
           <div className="space-y-4">
             <p>
@@ -167,7 +176,6 @@ export function TurnControls({
 
   // revealed phase
   if (game.phase === 'revealed') {
-    const myPlayer = game.players.find((p) => p.isCurrentUser)
     const alreadyClaimed = game.currentRound?.bets.some(
       (b) => b.bettorPlayerId === myPlayer?._id,
     )
@@ -192,6 +200,7 @@ export function TurnControls({
           )}
           {game.useTokens &&
             myPlayer &&
+            canParticipateInTiebreak &&
             !alreadyClaimed &&
             myPlayer.tokenBalance < game.maxTokens && (
               <Button

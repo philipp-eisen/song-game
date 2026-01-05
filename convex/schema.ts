@@ -44,6 +44,20 @@ const currentRoundValidator = v.object({
   tokenClaimers: v.array(v.id('gamePlayers')), // Players who claimed a guess token this round
 })
 
+// Endgame state stored on the game
+// - finalRound: someone reached the win condition; finish the rest of the turn cycle
+// - tiebreak: continue playing with only the tied leaders until a single winner exists
+const endgameStateValidator = v.union(
+  v.object({
+    type: v.literal('finalRound'),
+    endsAtSeatIndex: v.number(),
+  }),
+  v.object({
+    type: v.literal('tiebreak'),
+    contenderPlayerIds: v.array(v.id('gamePlayers')),
+  }),
+)
+
 // Playlist source provider
 const playlistSourceValidator = v.union(
   v.literal('spotify'),
@@ -145,6 +159,7 @@ export default defineSchema({
     phase: gamePhaseValidator,
     currentTurnSeatIndex: v.number(), // Which seat is active (0-indexed)
     currentRound: v.optional(currentRoundValidator),
+    endgameState: v.optional(endgameStateValidator),
     winnerId: v.optional(v.id('gamePlayers')), // Set when game is finished
 
     // Metadata
