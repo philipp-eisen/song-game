@@ -24,32 +24,37 @@ export function GameHeader({ game }: GameHeaderProps) {
     }
   }
 
+  // Only show join code for sidecars mode (multi-device games that can be joined)
+  const showJoinCode = game.mode === 'sidecars'
+
   return (
     <div className="flex items-center justify-between">
       <div>
         <h1 className="text-2xl font-bold">
           {game.playlistName ?? 'Song Game'}
         </h1>
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <span>
-            Code: <span className="font-mono text-lg">{game.joinCode}</span>
-          </span>
-          {game.phase === 'lobby' && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleCopyLink}
-              className="h-7 gap-1 px-2"
-            >
-              {copied ? (
-                <CheckIcon weight="duotone" className="size-4 text-green-500" />
-              ) : (
-                <CopyIcon weight="duotone" className="size-4" />
-              )}
-              <span className="text-xs">Copy Link</span>
-            </Button>
-          )}
-        </div>
+        {showJoinCode && (
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <span>
+              Code: <span className="font-mono text-lg">{game.joinCode}</span>
+            </span>
+            {game.phase === 'lobby' && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleCopyLink}
+                className="h-7 gap-1 px-2"
+              >
+                {copied ? (
+                  <CheckIcon weight="duotone" className="size-4 text-green-500" />
+                ) : (
+                  <CopyIcon weight="duotone" className="size-4" />
+                )}
+                <span className="text-xs">Copy Link</span>
+              </Button>
+            )}
+          </div>
+        )}
       </div>
       <Badge
         variant={
