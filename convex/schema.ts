@@ -44,6 +44,18 @@ const currentRoundValidator = v.object({
   tokenClaimers: v.array(v.id('gamePlayers')), // Players who claimed a guess token this round
 })
 
+// Final round state - triggered when a player reaches the win condition
+const finalRoundValidator = v.object({
+  triggerSeatIndex: v.number(), // Seat index when final round was triggered
+  triggerPlayerId: v.id('gamePlayers'), // Player who triggered the final round
+})
+
+// Tiebreaker state - for when multiple players are tied after final round
+const tiebreakerValidator = v.object({
+  playerIds: v.array(v.id('gamePlayers')), // Players participating in tiebreaker
+  targetCards: v.number(), // Number of cards they were tied at
+})
+
 // Playlist source provider
 const playlistSourceValidator = v.union(
   v.literal('spotify'),
@@ -146,6 +158,10 @@ export default defineSchema({
     currentTurnSeatIndex: v.number(), // Which seat is active (0-indexed)
     currentRound: v.optional(currentRoundValidator),
     winnerId: v.optional(v.id('gamePlayers')), // Set when game is finished
+
+    // Round-based winning condition
+    finalRound: v.optional(finalRoundValidator), // Set when a player reaches win condition
+    tiebreaker: v.optional(tiebreakerValidator), // Set when final round ends in a tie
 
     // Metadata
     createdAt: v.number(),
