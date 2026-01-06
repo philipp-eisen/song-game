@@ -5,8 +5,7 @@ import { isPlacementCorrect } from './placement-utils'
 
 import type { CardData, GameData, TimelineData } from './types'
 
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 
 export interface TimelineViewReadonlyProps {
   timeline: TimelineData
@@ -22,7 +21,6 @@ export function TimelineViewReadonly({
   isActivePlayer,
   currentCard,
 }: TimelineViewReadonlyProps) {
-  const player = game.players.find((p) => p._id === timeline.playerId)
   const { currentRound, phase } = game
 
   // Get the placement index if we should show the round placeholder
@@ -87,30 +85,7 @@ export function TimelineViewReadonly({
 
   return (
     <Card className={isActivePlayer ? 'border-2 border-primary' : ''}>
-      <CardHeader className="py-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base">
-            {timeline.displayName}
-            {timeline.isCurrentUser && <Badge className="ml-2">You</Badge>}
-            {isActivePlayer && (
-              <Badge variant="outline" className="ml-2">
-                Active
-              </Badge>
-            )}
-          </CardTitle>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">
-              {timeline.cards.length} cards
-            </span>
-            {game.useTokens && (
-              <Badge variant="secondary">
-                {player?.tokenBalance ?? 0} tokens
-              </Badge>
-            )}
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="py-2">
+      <CardContent className="py-3">
         <div className="-m-1 flex gap-2 overflow-x-auto p-1">
           {displayCards.length === 0 ? (
             <p className="text-sm text-muted-foreground">No cards yet</p>
