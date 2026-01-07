@@ -11,8 +11,11 @@ export type {
   TimelineViewEditableProps,
   TimelineViewReadonlyProps,
 } from './timeline-view'
+export { TimelineDropArea } from './timeline-drop-area'
 export { TurnControls } from './turn-controls'
 export { BetControls } from './bet-controls'
+export { ActionZone } from './action-zone'
+export { MysteryCardStack, MYSTERY_CARD_ID } from './mystery-card-stack'
 export { GameControlsBar } from './game-controls-bar'
 export { PlayerStatusBar } from './player-status-bar'
 export { TurnPrompt } from './turn-prompt'

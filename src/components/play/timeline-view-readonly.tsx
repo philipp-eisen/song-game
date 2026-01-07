@@ -3,6 +3,7 @@ import { GameCard } from './game-card'
 import { RoundTimelineCard } from './round-timeline-card'
 import { isPlacementCorrect } from './placement-utils'
 
+import type { ReactNode } from 'react'
 import type { CardData, GameData, TimelineData } from './types'
 
 import { Card, CardContent } from '@/components/ui/card'
@@ -13,6 +14,8 @@ export interface TimelineViewReadonlyProps {
   isActivePlayer: boolean
   /** Current round card data (passed from GameView to avoid extra queries) */
   currentCard?: CardData | null
+  /** Card stack to render inside the card */
+  cardStack?: ReactNode
 }
 
 export function TimelineViewReadonly({
@@ -20,6 +23,7 @@ export function TimelineViewReadonly({
   game,
   isActivePlayer,
   currentCard,
+  cardStack,
 }: TimelineViewReadonlyProps) {
   const { currentRound, phase } = game
 
@@ -86,7 +90,11 @@ export function TimelineViewReadonly({
   return (
     <Card className={isActivePlayer ? 'border-2 border-primary' : ''}>
       <CardContent className="py-3">
-        <div className="-m-1 flex gap-2 overflow-x-auto p-1">
+        {/* Card stack inside the card */}
+        {cardStack && (
+          <div className="mb-5 flex justify-center">{cardStack}</div>
+        )}
+        <div className="flex gap-2 overflow-x-auto p-2">
           {displayCards.length === 0 ? (
             <p className="text-sm text-muted-foreground">No cards yet</p>
           ) : (
