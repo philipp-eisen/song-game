@@ -17,6 +17,7 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { ArrowDownIcon } from '@phosphor-icons/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { GameCard } from './game-card'
 import { DraggableMysteryCard } from './round-timeline-card'
@@ -414,12 +415,23 @@ function TimelineEmptyDropSlot({ disabled }: { disabled?: boolean }) {
     <div
       ref={setNodeRef}
       className={cn(
-        'flex h-40 w-28 shrink-0 items-center justify-center rounded-md border-2 border-dashed text-center transition-colors',
-        isOver ? 'border-primary bg-primary/10' : 'border-muted-foreground/30',
+        'flex h-40 w-28 shrink-0 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed text-center transition-all',
+        isOver
+          ? 'scale-105 border-primary bg-primary/10'
+          : 'border-muted-foreground/30 bg-muted/30',
         disabled && 'opacity-50',
       )}
     >
-      <span className="px-2 text-xs text-muted-foreground">Drop here</span>
+      <ArrowDownIcon
+        weight="duotone"
+        className={cn(
+          'size-6 text-muted-foreground',
+          !disabled && 'animate-bounce',
+        )}
+      />
+      <span className="px-2 text-xs text-muted-foreground">
+        Drop your first card here
+      </span>
     </div>
   )
 }

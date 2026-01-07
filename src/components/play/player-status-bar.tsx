@@ -33,7 +33,7 @@ export function PlayerStatusBar({ game, timelines }: PlayerStatusBarProps) {
 
   return (
     <ScrollArea className="w-full">
-      <div className="flex gap-2 pb-3 md:gap-3">
+      <div className="flex gap-2 p-1 md:gap-3">
         {sortedPlayers.map((player) => {
           const isActive = player.seatIndex === currentTurnSeatIndex
           const timeline = timelines?.find((t) => t.playerId === player._id)
@@ -77,8 +77,12 @@ const PlayerStatusItem = forwardRef<HTMLDivElement, PlayerStatusItemProps>(
       <div
         ref={ref}
         className={cn(
-          'flex min-w-[120px] flex-1 items-center gap-2 rounded-lg border p-2 md:min-w-[140px]',
-          isActive && 'border-2 border-primary bg-primary/5',
+          'flex min-w-[120px] flex-1 items-center gap-2 rounded-lg border p-2 transition-all duration-300 md:min-w-[140px]',
+          isActive && [
+            'border-2 border-primary bg-primary/5',
+            'shadow-md shadow-primary/20',
+            'scale-[1.02]',
+          ],
         )}
       >
         <Avatar size="sm">

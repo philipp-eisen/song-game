@@ -1,5 +1,6 @@
+import { MusicNoteIcon } from '@phosphor-icons/react'
+
 import type { GameData } from './types'
-import { Badge } from '@/components/ui/badge'
 
 interface GameHeaderProps {
   game: GameData
@@ -7,22 +8,11 @@ interface GameHeaderProps {
 
 export function GameHeader({ game }: GameHeaderProps) {
   return (
-    <div className="flex items-center justify-between">
-      <h1 className="text-2xl font-bold">
+    <div className="flex items-center gap-2">
+      <MusicNoteIcon weight="duotone" className="size-6 text-primary" />
+      <h1 className="truncate text-xl font-bold">
         {game.playlistName ?? 'Song Game'}
       </h1>
-      <Badge
-        variant={
-          game.phase === 'lobby'
-            ? 'secondary'
-            : game.phase === 'finished'
-              ? 'default'
-              : 'outline'
-        }
-        className="text-sm"
-      >
-        {game.phase}
-      </Badge>
     </div>
   )
 }

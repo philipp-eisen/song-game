@@ -15,6 +15,7 @@ export { TurnControls } from './turn-controls'
 export { BetControls } from './bet-controls'
 export { GameControlsBar } from './game-controls-bar'
 export { PlayerStatusBar } from './player-status-bar'
+export { TurnPrompt } from './turn-prompt'
 export { GameCard } from './game-card'
 export { RoundTimelineCard, DraggableMysteryCard } from './round-timeline-card'
 export {
