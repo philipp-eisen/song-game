@@ -119,7 +119,6 @@ export function TimelineViewReadonly({
                           releaseYear: currentCard.releaseYear,
                           artistName: currentCard.artistNames[0],
                           imageUrl: currentCard.imageUrl,
-                          spotifyTrackId: currentCard.spotifyTrackId,
                         }
                       : undefined
                   }
