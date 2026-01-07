@@ -8,10 +8,12 @@ import {
   GameControlsBar,
   GameHeader,
   LobbyView,
-  PlayerStatusBar,
   TurnPrompt,
 } from '@/components/play'
-import { getAllTimelinesQuery, getGameByJoinCodeQuery } from '@/lib/convex-queries'
+import {
+  getAllTimelinesQuery,
+  getGameByJoinCodeQuery,
+} from '@/lib/convex-queries'
 import { authClient } from '@/lib/auth-client'
 import {
   Card,
@@ -35,8 +37,7 @@ export const Route = createFileRoute('/play/$joinCode')({
 function GamePage() {
   const { joinCode } = Route.useParams()
   const { data: game } = useSuspenseQuery(getGameByJoinCodeQuery(joinCode))
-  const { data: session, isPending: isSessionPending } =
-    authClient.useSession()
+  const { data: session, isPending: isSessionPending } = authClient.useSession()
   const joinByCode = useMutation(api.games.joinByCode)
 
   const [isJoining, setIsJoining] = useState(false)
@@ -64,9 +65,7 @@ function GamePage() {
         await joinByCode({ joinCode: joinCode.toUpperCase() })
         // Success! The query will automatically update and show the game
       } catch (err) {
-        setJoinError(
-          err instanceof Error ? err.message : 'Failed to join game',
-        )
+        setJoinError(err instanceof Error ? err.message : 'Failed to join game')
       } finally {
         setIsJoining(false)
         setHasAttemptedJoin(true)
@@ -142,9 +141,7 @@ function GamePage() {
 
   // Active game layout: header + player status bar + controls
   if (isActiveGame) {
-    return (
-      <ActiveGameView game={game} />
-    )
+    return <ActiveGameView game={game} />
   }
 
   // Lobby/Finished layout: standard scrolling page
@@ -158,7 +155,11 @@ function GamePage() {
 }
 
 // Separate component for active game to use suspense query for timelines
-function ActiveGameView({ game }: { game: NonNullable<typeof api.games.get._returnType> }) {
+function ActiveGameView({
+  game,
+}: {
+  game: NonNullable<typeof api.games.get._returnType>
+}) {
   const { data: timelines } = useSuspenseQuery(getAllTimelinesQuery(game._id))
   const timelineData = timelines ?? []
 
@@ -177,7 +178,6 @@ function ActiveGameView({ game }: { game: NonNullable<typeof api.games.get._retu
         activePlayer={activePlayer}
         isActivePlayer={!!isActivePlayer}
       />
-      <PlayerStatusBar game={game} timelines={timelineData} />
       <GameControlsBar game={game} timelines={timelineData} />
     </div>
   )

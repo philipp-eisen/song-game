@@ -6,8 +6,8 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { ArrowDownIcon } from '@phosphor-icons/react'
+import { motion } from 'motion/react'
 import { useMemo } from 'react'
-
 
 import { GameCard } from './game-card'
 import { MYSTERY_CARD_ID } from './mystery-card-stack'
@@ -62,33 +62,38 @@ export function TimelineDropArea({
           {cardStack && (
             <div className="mb-5 flex justify-center">{cardStack}</div>
           )}
-          <div
-            className={cn(
-              'flex gap-2 overflow-x-auto p-2',
-              // Subtle highlight while dragging toward the timeline
-              isDragging && showExternalMysteryCard && 'rounded-md ring-1 ring-primary/30',
-            )}
-          >
-            {items.length === 0 ? (
-              <TimelineEmptyDropSlot disabled={dragDisabled} />
-            ) : (
-              items.map((id) => {
-                if (id === MYSTERY_CARD_ID) {
-                  return (
-                    <SortableMysteryCard
-                      key={id}
-                      disabled={dragDisabled}
-                      isDragging={isDragging}
-                    />
-                  )
-                }
+          <div className="overflow-hidden">
+            <motion.div
+              className={cn(
+                'flex gap-2 overflow-x-auto px-2 pb-2 pt-4',
+                // Subtle highlight while dragging toward the timeline
+                isDragging && showExternalMysteryCard && 'rounded-md ring-1 ring-primary/30',
+              )}
+              initial={{ x: -100, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              transition={{ duration: 0.4, ease: 'easeOut' }}
+            >
+              {items.length === 0 ? (
+                <TimelineEmptyDropSlot disabled={dragDisabled} />
+              ) : (
+                items.map((id) => {
+                  if (id === MYSTERY_CARD_ID) {
+                    return (
+                      <SortableMysteryCard
+                        key={id}
+                        disabled={dragDisabled}
+                        isDragging={isDragging}
+                      />
+                    )
+                  }
 
-                const card = cardDataMap.get(id)
-                if (!card) return null
+                  const card = cardDataMap.get(id)
+                  if (!card) return null
 
-                return <SortableTimelineCard key={id} id={id} card={card} />
-              })
-            )}
+                  return <SortableTimelineCard key={id} id={id} card={card} />
+                })
+              )}
+            </motion.div>
           </div>
         </CardContent>
       </Card>

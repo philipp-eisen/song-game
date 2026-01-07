@@ -1,11 +1,12 @@
 import {
   CheckCircleIcon,
   SealQuestionIcon,
-  SpotifyLogoIcon,
   XCircleIcon,
 } from '@phosphor-icons/react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useState } from 'react'
+
+import { ConfettiBurst } from './confetti-burst'
 import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 
@@ -20,7 +21,6 @@ interface RoundTimelineCardProps {
     releaseYear: number
     artistName?: string
     imageUrl?: string | null
-    spotifyTrackId?: string | null
   }
   /** Called when the wrong animation completes and the card should be removed */
   onWrongAnimationComplete?: () => void
@@ -35,24 +35,42 @@ export function RoundTimelineCard({
   className,
 }: RoundTimelineCardProps) {
   const [showCard, setShowCard] = useState(true)
-  const [hasTriggeredWrongAnimation, setHasTriggeredWrongAnimation] =
-    useState(false)
+  const [shouldShake, setShouldShake] = useState(false)
+  const [showConfetti, setShowConfetti] = useState(false)
 
-  // When revealed as wrong, wait briefly then trigger disappear animation
+  // Trigger shake animation when revealed as wrong
   useEffect(() => {
-    if (isRevealed && isCorrect === false && !hasTriggeredWrongAnimation) {
-      setHasTriggeredWrongAnimation(true)
+    if (isRevealed && isCorrect === false) {
+      // Delay shake to happen after flip completes
       const timer = setTimeout(() => {
-        setShowCard(false)
-      }, 1500) // Show wrong state for 1.5s before disappearing
+        setShouldShake(true)
+      }, 600)
       return () => clearTimeout(timer)
     }
-  }, [isRevealed, isCorrect, hasTriggeredWrongAnimation])
+  }, [isRevealed, isCorrect])
+
+  // Trigger confetti when revealed as correct
+  useEffect(() => {
+    if (isRevealed && isCorrect === true) {
+      let hideTimer: NodeJS.Timeout | undefined
+      // Delay confetti to sync with flip animation completion
+      const showTimer = setTimeout(() => {
+        setShowConfetti(true)
+        // Auto-hide confetti after animation
+        hideTimer = setTimeout(() => setShowConfetti(false), 800)
+      }, 500)
+      return () => {
+        clearTimeout(showTimer)
+        if (hideTimer) clearTimeout(hideTimer)
+      }
+    }
+  }, [isRevealed, isCorrect])
 
   // Reset state when card changes
   useEffect(() => {
     setShowCard(true)
-    setHasTriggeredWrongAnimation(false)
+    setShouldShake(false)
+    setShowConfetti(false)
   }, [cardData?.title])
 
   return (
@@ -75,12 +93,21 @@ export function RoundTimelineCard({
             transition: { duration: 0.4, ease: 'easeInOut' },
           }}
         >
-          {/* Card container for flip */}
+          {/* Confetti burst for correct answers */}
+          <ConfettiBurst isActive={showConfetti} />
+
+          {/* Card container for flip + shake */}
           <motion.div
             className="relative h-full w-full"
             style={{ transformStyle: 'preserve-3d' }}
-            animate={{ rotateY: isRevealed ? 180 : 0 }}
-            transition={{ duration: 0.6, ease: 'easeInOut' }}
+            animate={{
+              rotateY: isRevealed ? 180 : 0,
+              x: shouldShake ? [0, -8, 8, -6, 6, -4, 4, 0] : 0,
+            }}
+            transition={{
+              rotateY: { duration: 0.6, ease: 'easeInOut' },
+              x: { duration: 0.5, ease: 'easeInOut' },
+            }}
           >
             {/* Front face - Mystery card */}
             <div
@@ -136,7 +163,6 @@ interface RevealedCardFaceProps {
     releaseYear: number
     artistName?: string
     imageUrl?: string | null
-    spotifyTrackId?: string | null
   }
   isCorrect?: boolean
   isRevealed: boolean
@@ -147,83 +173,109 @@ function RevealedCardFace({
   isCorrect,
   isRevealed,
 }: RevealedCardFaceProps) {
-  const spotifyUrl = cardData?.spotifyTrackId
-    ? `https://open.spotify.com/track/${cardData.spotifyTrackId}`
-    : null
-
   return (
-    <Card
-      size="sm"
-      className={cn(
-        'relative h-full w-full items-center gap-1 p-2 text-center transition-colors duration-300',
-        isRevealed &&
-          isCorrect === true &&
-          'ring-2 ring-success ring-offset-1 ring-offset-background',
-        isRevealed &&
-          isCorrect === false &&
-          'ring-2 ring-destructive ring-offset-1 ring-offset-background',
-      )}
-    >
-      <CardContent className="flex flex-col items-center gap-0 p-0">
-        {cardData?.imageUrl && (
-          <img
-            src={cardData.imageUrl}
-            alt=""
-            className="mb-1 h-12 w-12 shrink-0 rounded object-cover"
-          />
-        )}
-        <p
-          className="line-clamp-3 h-10 w-full text-xs font-medium leading-[0.875rem]"
-          title={cardData?.title}
-        >
-          {cardData?.title ?? 'Unknown'}
-        </p>
-        {cardData?.artistName && (
-          <p
-            className="w-full shrink-0 truncate text-xs text-muted-foreground"
-            title={cardData.artistName}
-          >
-            {cardData.artistName}
-          </p>
-        )}
-        <p className="text-sm font-bold text-primary">
-          {cardData?.releaseYear ?? '????'}
-        </p>
-
-        {/* Open in Spotify link */}
-        {spotifyUrl && (
-          <a
-            href={spotifyUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground hover:text-spotify"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <SpotifyLogoIcon weight="duotone" className="size-3" />
-            Open
-          </a>
-        )}
-      </CardContent>
-
-      {/* Result badge overlay */}
+    <div className="relative h-full w-full">
+      {/* Glow effect behind card */}
       {isRevealed && isCorrect !== undefined && (
         <motion.div
           className={cn(
-            'absolute -right-2 -top-2 rounded-full p-0.5',
-            isCorrect ? 'bg-success' : 'bg-destructive',
+            'absolute -inset-1 rounded-2xl',
+            isCorrect ? 'bg-success/20' : 'bg-destructive/20',
           )}
-          initial={{ scale: 0, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ delay: 0.3, duration: 0.3, ease: 'backOut' }}
-        >
-          {isCorrect ? (
-            <CheckCircleIcon className="h-5 w-5 text-white" weight="duotone" />
-          ) : (
-            <XCircleIcon className="h-5 w-5 text-white" weight="duotone" />
-          )}
-        </motion.div>
+          initial={{ opacity: 0 }}
+          animate={{
+            opacity: [0.4, 0.8, 0.4],
+            scale: [1, 1.02, 1],
+          }}
+          transition={{
+            duration: 1.5,
+            repeat: Infinity,
+            ease: 'easeInOut',
+          }}
+          style={{
+            boxShadow: isCorrect
+              ? '0 0 20px hsl(var(--success)), 0 0 40px hsl(var(--success) / 0.5)'
+              : '0 0 20px hsl(var(--destructive)), 0 0 40px hsl(var(--destructive) / 0.5)',
+          }}
+        />
       )}
-    </Card>
+
+      <Card
+        size="sm"
+        className={cn(
+          'relative h-full w-full items-center gap-1 overflow-visible p-2 text-center transition-colors duration-300',
+          isRevealed &&
+            isCorrect === true &&
+            'ring-2 ring-success ring-offset-1 ring-offset-background',
+          isRevealed &&
+            isCorrect === false &&
+            'ring-2 ring-destructive ring-offset-1 ring-offset-background',
+        )}
+      >
+        <CardContent className="flex flex-col items-center gap-0 overflow-hidden p-0">
+          {cardData?.imageUrl && (
+            <img
+              src={cardData.imageUrl}
+              alt=""
+              className="mb-1 h-12 w-12 shrink-0 rounded object-cover"
+            />
+          )}
+          <p
+            className="line-clamp-4 h-14 w-full text-xs font-medium leading-[0.875rem]"
+            title={cardData?.title}
+          >
+            {cardData?.title ?? 'Unknown'}
+          </p>
+          {cardData?.artistName && (
+            <p
+              className="w-full shrink-0 truncate text-xs text-muted-foreground"
+              title={cardData.artistName}
+            >
+              {cardData.artistName}
+            </p>
+          )}
+          <p className="mt-auto text-sm font-bold text-primary">
+            {cardData?.releaseYear ?? '????'}
+          </p>
+        </CardContent>
+
+        {/* Result badge overlay - correct */}
+        {isRevealed && isCorrect === true && (
+          <motion.div
+            className="absolute -right-3 -top-3 rounded-full bg-success p-1 shadow-lg"
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{
+              scale: [1, 1.2, 1],
+              opacity: 1,
+            }}
+            transition={{
+              delay: 0.3,
+              duration: 0.5,
+              scale: { delay: 0.5, duration: 0.4, repeat: 2 },
+            }}
+          >
+            <CheckCircleIcon className="h-6 w-6 text-white" weight="duotone" />
+          </motion.div>
+        )}
+
+        {/* Result badge overlay - wrong */}
+        {isRevealed && isCorrect === false && (
+          <motion.div
+            className="absolute -right-3 -top-3 rounded-full bg-destructive p-1 shadow-lg"
+            initial={{ scale: 0, opacity: 0, rotate: -180 }}
+            animate={{ scale: 1, opacity: 1, rotate: 0 }}
+            transition={{
+              delay: 0.8,
+              duration: 0.4,
+              type: 'spring',
+              stiffness: 200,
+            }}
+          >
+            <XCircleIcon className="h-6 w-6 text-white" weight="duotone" />
+          </motion.div>
+        )}
+      </Card>
+    </div>
   )
 }
 

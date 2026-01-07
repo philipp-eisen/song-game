@@ -77,7 +77,7 @@ const PlayerStatusItem = forwardRef<HTMLDivElement, PlayerStatusItemProps>(
       <div
         ref={ref}
         className={cn(
-          'flex min-w-[120px] flex-1 items-center gap-2 rounded-lg border p-2 transition-all duration-300 md:min-w-[140px]',
+          'flex min-w-[120px] flex-1 items-center gap-2 rounded-lg border p-2 transition-all duration-[400ms] ease-in-out md:min-w-[140px]',
           isActive && [
             'border-2 border-primary bg-primary/5',
             'shadow-md shadow-primary/20',

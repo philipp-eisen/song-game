@@ -24,7 +24,7 @@ export function GameCard({
         className,
       )}
     >
-      <CardContent className="flex flex-col items-center gap-0 p-0">
+      <CardContent className="flex flex-col items-center gap-0 overflow-hidden p-0">
         {imageUrl && (
           <img
             src={imageUrl}

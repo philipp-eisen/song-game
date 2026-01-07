@@ -17,6 +17,7 @@ import { api } from '../../../convex/_generated/api'
 import { ActionButtons } from './action-zone'
 import { BetControls } from './bet-controls'
 import { MYSTERY_CARD_ID, MysteryCardStack } from './mystery-card-stack'
+import { PlayerStatusBar } from './player-status-bar'
 import { DraggableMysteryCard } from './round-timeline-card'
 import { TimelineDropArea } from './timeline-drop-area'
 import { TimelineViewReadonly } from './timeline-view-readonly'
@@ -328,6 +329,24 @@ export function GameControlsBar({ game, timelines }: GameControlsBarProps) {
   // Find current user's player for betting controls
   const myPlayer = game.players.find((p) => p.isCurrentUser)
 
+  // Transition state for player changes
+  const [isExiting, setIsExiting] = useState(false)
+
+  const handleBeforeResolve = useCallback(async () => {
+    // Start the exit animation
+    setIsExiting(true)
+
+    // Wait for exit animation to complete (match the transition duration)
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 400)
+    })
+  }, [])
+
+  // Reset exit state when player changes
+  useEffect(() => {
+    setIsExiting(false)
+  }, [activePlayer?._id])
+
   return (
     <DndContext
       sensors={sensors}
@@ -337,8 +356,8 @@ export function GameControlsBar({ game, timelines }: GameControlsBarProps) {
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
+      {/* Audio Player - outside animation to preserve playback */}
       <div className="space-y-4">
-        {/* Audio Player */}
         <div className="rounded-2xl bg-gradient-to-br from-primary/5 to-primary/15 p-4">
           <div className="flex items-center gap-4">
             <div className="flex size-14 shrink-0 items-center justify-center rounded-xl bg-primary/20">
@@ -362,73 +381,80 @@ export function GameControlsBar({ game, timelines }: GameControlsBarProps) {
             />
           </div>
         </div>
+      </div>
 
-        {/* Timeline with card stack inside */}
-        {activePlayerTimeline && shouldShowDropzone ? (
-          <TimelineDropArea
-            timeline={activePlayerTimeline}
-            items={items}
-            isActivePlayer={true}
-            isDragging={isDragging}
-            isCardPlaced={isCardPlaced}
-            dragDisabled={isPlacing}
-            cardStack={
-              <MysteryCardStack
-                key={`${canDragCard}-${game.currentRound?.card?.title ?? 'none'}`}
-                cardsRemaining={cardsRemaining}
-                disabled={!canDragCard}
-              />
-            }
-          />
-        ) : activePlayerTimeline ? (
-          <TimelineViewReadonly
-            timeline={activePlayerTimeline}
-            game={game}
-            isActivePlayer={true}
-            currentCard={currentCard}
-            cardStack={
-              <MysteryCardStack
-                key={`${canDragCard}-${game.currentRound?.card?.title ?? 'none'}`}
-                cardsRemaining={cardsRemaining}
-                disabled={!canDragCard}
-              />
-            }
-          />
-        ) : null}
+      {/* Player status bar - stays in place, highlight animates between players */}
+      <PlayerStatusBar game={game} timelines={timelines} />
 
-        {/* Action buttons - below timeline */}
-        {activePlayer && (
-          <div className="flex justify-center">
-            <ActionButtons
-              game={game}
-              activePlayer={activePlayer}
-              isActivePlayer={isActivePlayer}
-              isHost={isHost}
+      {/* Play area card - card and stack stay in place, only timeline animates */}
+      {activePlayerTimeline && shouldShowDropzone ? (
+        <TimelineDropArea
+          timeline={activePlayerTimeline}
+          items={items}
+          isActivePlayer={true}
+          isDragging={isDragging}
+          isCardPlaced={isCardPlaced}
+          dragDisabled={isPlacing}
+          cardStack={
+            <MysteryCardStack
+              key={`${canDragCard}-${game.currentRound?.card?.title ?? 'none'}`}
+              cardsRemaining={cardsRemaining}
+              disabled={!canDragCard}
             />
+          }
+        />
+      ) : activePlayerTimeline ? (
+        <TimelineViewReadonly
+          timeline={activePlayerTimeline}
+          game={game}
+          isActivePlayer={true}
+          currentCard={currentCard}
+          cardStack={
+            <MysteryCardStack
+              key={`${canDragCard}-${game.currentRound?.card?.title ?? 'none'}`}
+              cardsRemaining={cardsRemaining}
+              disabled={!canDragCard}
+            />
+          }
+          isExiting={isExiting}
+        />
+      ) : null}
+
+      {/* Action buttons - below timeline */}
+      {activePlayer && (
+        <div className="flex justify-center">
+          <ActionButtons
+            game={game}
+            activePlayer={activePlayer}
+            isActivePlayer={isActivePlayer}
+            isHost={isHost}
+            onBeforeResolve={handleBeforeResolve}
+          />
+        </div>
+      )}
+
+      {placementError && (
+        <p className="text-center text-sm text-destructive">
+          {placementError}
+        </p>
+      )}
+
+      {/* Betting controls for non-active players */}
+      {!isActivePlayer &&
+        game.useTokens &&
+        myPlayer &&
+        myPlayer.tokenBalance >= 1 &&
+        (game.phase === 'awaitingPlacement' ||
+          game.phase === 'awaitingReveal') && (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              {game.phase === 'awaitingReveal'
+                ? 'Last chance to place your bet!'
+                : 'Bet on where the card should go (costs 1 token)'}
+            </p>
+            <BetControls game={game} myPlayer={myPlayer} />
           </div>
         )}
-
-        {placementError && (
-          <p className="text-center text-sm text-destructive">{placementError}</p>
-        )}
-
-        {/* Betting controls for non-active players */}
-        {!isActivePlayer &&
-          game.useTokens &&
-          myPlayer &&
-          myPlayer.tokenBalance >= 1 &&
-          (game.phase === 'awaitingPlacement' ||
-            game.phase === 'awaitingReveal') && (
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                {game.phase === 'awaitingReveal'
-                  ? 'Last chance to place your bet!'
-                  : 'Bet on where the card should go (costs 1 token)'}
-              </p>
-              <BetControls game={game} myPlayer={myPlayer} />
-            </div>
-          )}
-      </div>
 
       {/* Drag overlay */}
       <DragOverlay dropAnimation={null}>

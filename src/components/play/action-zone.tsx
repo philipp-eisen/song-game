@@ -69,6 +69,8 @@ interface ActionButtonsProps {
   activePlayer: PlayerData
   isActivePlayer: boolean
   isHost: boolean
+  /** Callback to trigger transition animation before resolving round */
+  onBeforeResolve?: () => Promise<void>
 }
 
 export function ActionButtons({
@@ -76,6 +78,7 @@ export function ActionButtons({
   activePlayer,
   isActivePlayer,
   isHost,
+  onBeforeResolve,
 }: ActionButtonsProps) {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -206,20 +209,24 @@ export function ActionButtons({
       myPlayer?._id &&
       game.currentRound?.tokenClaimers.includes(myPlayer._id)
 
+    const handleContinue = async () => {
+      // Trigger transition animation before resolving
+      if (onBeforeResolve) {
+        await onBeforeResolve()
+      }
+      await resolveRound({
+        gameId: game._id,
+        actingPlayerId: activePlayer._id,
+      })
+    }
+
     return (
       <div className="flex flex-col items-center gap-2">
         <div className="flex flex-wrap justify-center gap-2">
         {(isActivePlayer || isHost) && (
           <Button
             className="gap-2"
-            onClick={() =>
-              onAction(() =>
-                resolveRound({
-                  gameId: game._id,
-                  actingPlayerId: activePlayer._id,
-                }),
-              )
-            }
+            onClick={() => onAction(handleContinue)}
             disabled={loading}
           >
             <ArrowRightIcon weight="duotone" className="size-4" />
