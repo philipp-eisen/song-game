@@ -8,9 +8,11 @@ import { CSS } from '@dnd-kit/utilities'
 import { ArrowDownIcon } from '@phosphor-icons/react'
 import { useMemo } from 'react'
 
+
 import { GameCard } from './game-card'
-import { DraggableMysteryCard } from './round-timeline-card'
 import { MYSTERY_CARD_ID } from './mystery-card-stack'
+import { DraggableMysteryCard } from './round-timeline-card'
+import type { ReactNode } from 'react'
 import type { TimelineData } from './types'
 import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
@@ -28,6 +30,8 @@ interface TimelineDropAreaProps {
   isCardPlaced: boolean
   /** Disable dragging */
   dragDisabled?: boolean
+  /** Card stack to render inside the card */
+  cardStack?: ReactNode
 }
 
 export function TimelineDropArea({
@@ -37,6 +41,7 @@ export function TimelineDropArea({
   isDragging,
   isCardPlaced,
   dragDisabled,
+  cardStack,
 }: TimelineDropAreaProps) {
   // Create a map of card data for quick lookup
   const cardDataMap = useMemo(() => {
@@ -52,7 +57,11 @@ export function TimelineDropArea({
   return (
     <SortableContext items={items} strategy={horizontalListSortingStrategy}>
       <Card className={cn('overflow-visible', isActivePlayer && 'border-2 border-primary')}>
-        <CardContent className="overflow-visible py-1">
+        <CardContent className="overflow-visible py-3">
+          {/* Card stack inside the card */}
+          {cardStack && (
+            <div className="mb-5 flex justify-center">{cardStack}</div>
+          )}
           <div
             className={cn(
               'flex gap-2 overflow-x-auto p-2',

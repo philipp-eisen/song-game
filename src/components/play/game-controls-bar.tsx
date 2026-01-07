@@ -363,16 +363,7 @@ export function GameControlsBar({ game, timelines }: GameControlsBarProps) {
           </div>
         </div>
 
-        {/* Card stack - above timeline */}
-        <div className="flex justify-center">
-          <MysteryCardStack
-            key={`${canDragCard}-${game.currentRound?.card?.title ?? 'none'}`}
-            cardsRemaining={cardsRemaining}
-            disabled={!canDragCard}
-          />
-        </div>
-
-        {/* Timeline */}
+        {/* Timeline with card stack inside */}
         {activePlayerTimeline && shouldShowDropzone ? (
           <TimelineDropArea
             timeline={activePlayerTimeline}
@@ -381,6 +372,13 @@ export function GameControlsBar({ game, timelines }: GameControlsBarProps) {
             isDragging={isDragging}
             isCardPlaced={isCardPlaced}
             dragDisabled={isPlacing}
+            cardStack={
+              <MysteryCardStack
+                key={`${canDragCard}-${game.currentRound?.card?.title ?? 'none'}`}
+                cardsRemaining={cardsRemaining}
+                disabled={!canDragCard}
+              />
+            }
           />
         ) : activePlayerTimeline ? (
           <TimelineViewReadonly
@@ -388,6 +386,13 @@ export function GameControlsBar({ game, timelines }: GameControlsBarProps) {
             game={game}
             isActivePlayer={true}
             currentCard={currentCard}
+            cardStack={
+              <MysteryCardStack
+                key={`${canDragCard}-${game.currentRound?.card?.title ?? 'none'}`}
+                cardsRemaining={cardsRemaining}
+                disabled={!canDragCard}
+              />
+            }
           />
         ) : null}
 
