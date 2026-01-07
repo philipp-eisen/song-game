@@ -52,13 +52,17 @@ export function RoundTimelineCard({
   // Trigger confetti when revealed as correct
   useEffect(() => {
     if (isRevealed && isCorrect === true) {
+      let hideTimer: NodeJS.Timeout | undefined
       // Delay confetti to sync with flip animation completion
       const showTimer = setTimeout(() => {
         setShowConfetti(true)
         // Auto-hide confetti after animation
-        setTimeout(() => setShowConfetti(false), 800)
+        hideTimer = setTimeout(() => setShowConfetti(false), 800)
       }, 500)
-      return () => clearTimeout(showTimer)
+      return () => {
+        clearTimeout(showTimer)
+        if (hideTimer) clearTimeout(hideTimer)
+      }
     }
   }, [isRevealed, isCorrect])
 
