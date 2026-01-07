@@ -55,24 +55,25 @@ export function ActionZone({
     }
   }
 
-  // Determine which buttons to show based on game phase
-  const showMysteryCard =
+  // Card stack is only draggable during placement phases when it's the active player's turn
+  const canDragCard =
     isActivePlayer &&
-    (game.phase === 'awaitingPlacement' || game.phase === 'awaitingReveal')
+    (game.phase === 'awaitingPlacement' || game.phase === 'awaitingReveal') &&
+    !isCardPlaced &&
+    !dragDisabled
+
+  // Key to force remount when draggability changes - ensures dnd-kit re-registers
+  const stackKey = `${canDragCard}-${game.currentRound?.card?.title ?? 'none'}`
 
   return (
     <div className="flex items-center justify-between gap-4 rounded-2xl bg-muted/30 p-4">
-      {/* Left side: Mystery card stack */}
+      {/* Left side: Mystery card stack - always visible */}
       <div className="shrink-0">
-        {showMysteryCard ? (
-          <MysteryCardStack
-            cardsRemaining={cardsRemaining}
-            disabled={dragDisabled}
-            isPlaced={isCardPlaced}
-          />
-        ) : (
-          <div className="h-40 w-28" /> // Spacer when not showing card
-        )}
+        <MysteryCardStack
+          key={stackKey}
+          cardsRemaining={cardsRemaining}
+          disabled={!canDragCard}
+        />
       </div>
 
       {/* Right side: Action buttons */}

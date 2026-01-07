@@ -356,19 +356,6 @@ export function GameControlsBar({ game, timelines }: GameControlsBarProps) {
           </div>
         </div>
 
-        {/* Action Zone - Card stack + controls */}
-        {activePlayer && (
-          <ActionZone
-            game={game}
-            activePlayer={activePlayer}
-            isActivePlayer={isActivePlayer}
-            isHost={isHost}
-            cardsRemaining={cardsRemaining}
-            isCardPlaced={isCardPlaced}
-            dragDisabled={isPlacing}
-          />
-        )}
-
         {/* Timeline */}
         {activePlayerTimeline && shouldShowDropzone ? (
           <TimelineDropArea
@@ -387,6 +374,19 @@ export function GameControlsBar({ game, timelines }: GameControlsBarProps) {
             currentCard={currentCard}
           />
         ) : null}
+
+        {/* Action Zone - Card stack + controls */}
+        {activePlayer && (
+          <ActionZone
+            game={game}
+            activePlayer={activePlayer}
+            isActivePlayer={isActivePlayer}
+            isHost={isHost}
+            cardsRemaining={cardsRemaining}
+            isCardPlaced={isCardPlaced}
+            dragDisabled={isPlacing}
+          />
+        )}
 
         {placementError && (
           <p className="text-center text-sm text-destructive">{placementError}</p>
