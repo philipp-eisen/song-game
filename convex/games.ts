@@ -652,6 +652,7 @@ const gameResponseValidator = v.object({
           slotIndex: v.number(),
         }),
       ),
+      tokenClaimers: v.array(v.id('gamePlayers')),
       card: v.optional(
         v.object({
           _id: v.id('gameCards'),
@@ -671,6 +672,7 @@ type CurrentRoundInfo = {
   activePlayerId: Id<'gamePlayers'>
   placementIndex?: number
   bets: Array<{ bettorPlayerId: Id<'gamePlayers'>; slotIndex: number }>
+  tokenClaimers: Array<Id<'gamePlayers'>>
   card?: {
     _id: Id<'gameCards'>
     title: string
@@ -731,6 +733,7 @@ async function buildGameResponse(
         bettorPlayerId: b.bettorPlayerId,
         slotIndex: b.slotIndex,
       })),
+      tokenClaimers: game.currentRound.tokenClaimers,
     }
 
     // Only show card details after reveal

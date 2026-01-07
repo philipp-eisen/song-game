@@ -202,9 +202,9 @@ export function ActionButtons({
 
   // revealed phase
   if (game.phase === 'revealed') {
-    const alreadyClaimed = game.currentRound?.bets.some(
-      (b) => b.bettorPlayerId === myPlayer?._id,
-    )
+    const alreadyClaimed =
+      myPlayer?._id &&
+      game.currentRound?.tokenClaimers.includes(myPlayer._id)
 
     return (
       <div className="flex flex-col items-center gap-2">
