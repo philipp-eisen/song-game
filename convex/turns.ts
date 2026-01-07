@@ -43,27 +43,6 @@ async function verifyCanActForPlayer(
   }
 }
 
-/**
- * Get the active player for the current turn
- */
-async function getActivePlayer(
-  ctx: MutationCtx,
-  game: Game,
-): Promise<GamePlayer> {
-  const player = await ctx.db
-    .query('gamePlayers')
-    .withIndex('by_gameId_and_seatIndex', (q) =>
-      q.eq('gameId', game._id).eq('seatIndex', game.currentTurnSeatIndex),
-    )
-    .unique()
-
-  if (!player) {
-    throw new Error('Active player not found')
-  }
-
-  return player
-}
-
 // ===========================================
 // Timeline helpers
 // ===========================================
@@ -238,62 +217,6 @@ async function advanceTurn(ctx: MutationCtx, game: Game): Promise<number> {
 // ===========================================
 // Turn Mutations
 // ===========================================
-
-/**
- * Start a new round: draw a card and begin placement phase
- */
-export const startRound = mutation({
-  args: {
-    gameId: v.id('games'),
-    actingPlayerId: v.id('gamePlayers'),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const game = await ctx.db.get('games', args.gameId)
-    if (!game) {
-      throw new Error('Game not found')
-    }
-
-    if (game.phase !== 'awaitingStart') {
-      throw new Error('Cannot start round in current phase')
-    }
-
-    const activePlayer = await getActivePlayer(ctx, game)
-    if (activePlayer._id !== args.actingPlayerId) {
-      throw new Error('Not your turn')
-    }
-
-    await verifyCanActForPlayer(ctx, game, activePlayer)
-
-    // Draw next card
-    const card = await drawNextCard(ctx, game._id)
-    if (!card) {
-      // No more cards - game ends in a draw (or we could end based on highest timeline)
-      await ctx.db.patch('games', args.gameId, {
-        phase: 'finished',
-        finishedAt: Date.now(),
-      })
-      return null
-    }
-
-    // Update card state
-    await ctx.db.patch('gameCards', card._id, { state: 'inRound' })
-
-    // Update game state
-    await ctx.db.patch('games', args.gameId, {
-      phase: 'awaitingPlacement',
-      currentRound: {
-        cardId: card._id,
-        activePlayerId: activePlayer._id,
-        placementIndex: undefined,
-        bets: [],
-        tokenClaimers: [],
-      },
-    })
-
-    return null
-  },
-})
 
 /**
  * Skip the current round (costs 1 token)
@@ -811,12 +734,45 @@ export const resolveRound = mutation({
         finishedAt: Date.now(),
       })
     } else {
-      // Continue to next turn
-      await ctx.db.patch('games', args.gameId, {
-        phase: 'awaitingStart',
-        currentTurnSeatIndex: nextSeatIndex,
-        currentRound: undefined,
-      })
+      // Auto-draw next card for the new active player
+      const nextCard = await drawNextCard(ctx, game._id)
+
+      if (!nextCard) {
+        // No more cards - game ends (deck exhausted)
+        await ctx.db.patch('games', args.gameId, {
+          phase: 'finished',
+          currentRound: undefined,
+          finishedAt: Date.now(),
+        })
+      } else {
+        // Get the next active player
+        const nextPlayer = await ctx.db
+          .query('gamePlayers')
+          .withIndex('by_gameId_and_seatIndex', (q) =>
+            q.eq('gameId', game._id).eq('seatIndex', nextSeatIndex),
+          )
+          .unique()
+
+        if (!nextPlayer) {
+          throw new Error('Next player not found')
+        }
+
+        // Update card state to inRound
+        await ctx.db.patch('gameCards', nextCard._id, { state: 'inRound' })
+
+        // Continue to next turn with card already drawn
+        await ctx.db.patch('games', args.gameId, {
+          phase: 'awaitingPlacement',
+          currentTurnSeatIndex: nextSeatIndex,
+          currentRound: {
+            cardId: nextCard._id,
+            activePlayerId: nextPlayer._id,
+            placementIndex: undefined,
+            bets: [],
+            tokenClaimers: [],
+          },
+        })
+      }
     }
 
     return {
@@ -830,7 +786,7 @@ export const resolveRound = mutation({
 
 /**
  * Trade 3 tokens for a card that is auto-inserted correctly
- * (only during awaitingStart phase, before starting your turn)
+ * (available during any phase of the active player's turn)
  */
 export const tradeTokensForCard = mutation({
   args: {
@@ -851,13 +807,20 @@ export const tradeTokensForCard = mutation({
       throw new Error('Tokens are not enabled for this game')
     }
 
-    if (game.phase !== 'awaitingStart') {
-      throw new Error('Can only trade tokens before starting your turn')
+    // Allow during any phase of active player's turn
+    const validPhases = ['awaitingPlacement', 'awaitingReveal', 'revealed']
+    if (!validPhases.includes(game.phase)) {
+      throw new Error('Can only trade tokens during your active turn')
     }
 
-    const activePlayer = await getActivePlayer(ctx, game)
-    if (activePlayer._id !== args.actingPlayerId) {
-      throw new Error('Not your turn')
+    // Must have an active round with this player
+    if (!game.currentRound) {
+      throw new Error('No active round')
+    }
+
+    const activePlayer = await ctx.db.get('gamePlayers', game.currentRound.activePlayerId)
+    if (!activePlayer || activePlayer._id !== args.actingPlayerId) {
+      throw new Error('Not your turn - can only trade tokens when you are the active player')
     }
 
     await verifyCanActForPlayer(ctx, game, activePlayer)

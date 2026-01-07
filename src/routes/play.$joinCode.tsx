@@ -9,6 +9,7 @@ import {
   GameHeader,
   LobbyView,
   PlayerStatusBar,
+  TurnPrompt,
 } from '@/components/play'
 import { getAllTimelinesQuery, getGameByJoinCodeQuery } from '@/lib/convex-queries'
 import { authClient } from '@/lib/auth-client'
@@ -161,9 +162,21 @@ function ActiveGameView({ game }: { game: NonNullable<typeof api.games.get._retu
   const { data: timelines } = useSuspenseQuery(getAllTimelinesQuery(game._id))
   const timelineData = timelines ?? []
 
+  const activePlayer = game.players.find(
+    (p) => p.seatIndex === game.currentTurnSeatIndex,
+  )
+  const isActivePlayer =
+    activePlayer?.isCurrentUser ||
+    (activePlayer?.kind === 'local' && game.isCurrentUserHost)
+
   return (
     <div className="space-y-4 p-4">
       <GameHeader game={game} />
+      <TurnPrompt
+        game={game}
+        activePlayer={activePlayer}
+        isActivePlayer={!!isActivePlayer}
+      />
       <PlayerStatusBar game={game} timelines={timelineData} />
       <GameControlsBar game={game} timelines={timelineData} />
     </div>

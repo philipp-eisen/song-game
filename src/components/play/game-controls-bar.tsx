@@ -1,6 +1,8 @@
 import { useMutation } from 'convex/react'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
+import { MusicNoteIcon } from '@phosphor-icons/react'
+
 import { api } from '../../../convex/_generated/api'
 import { TurnControls } from './turn-controls'
 import { TimelineView } from './timeline-view'
@@ -10,7 +12,6 @@ import {
   getCurrentRoundSongPreviewQuery,
 } from '@/lib/convex-queries'
 import { PreviewPlayer } from '@/components/preview-player'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 interface GameControlsBarProps {
   game: GameData
@@ -67,19 +68,30 @@ export function GameControlsBar({ game, timelines }: GameControlsBarProps) {
 
   return (
     <div className="space-y-4">
-      {/* Card 1: Audio Player */}
-      <Card>
-        <CardHeader className="py-3">
-          <CardTitle className="text-base">Now Playing</CardTitle>
-        </CardHeader>
-        <CardContent className="pb-4">
+      {/* Audio Player */}
+      <div className="rounded-2xl bg-gradient-to-br from-primary/5 to-primary/15 p-4">
+        <div className="flex items-center gap-4">
+          <div className="flex size-14 shrink-0 items-center justify-center rounded-xl bg-primary/20">
+            <MusicNoteIcon
+              weight="duotone"
+              className="size-7 animate-pulse text-primary"
+            />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="font-medium text-primary">Mystery Song</p>
+            <p className="truncate text-sm text-muted-foreground">
+              Listen and place it on your timeline
+            </p>
+          </div>
+        </div>
+        <div className="mt-3">
           <PreviewPlayer
             previewUrl={songPreview?.previewUrl}
             appleMusicId={songPreview?.appleMusicId}
             autoPlay
           />
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {activePlayerTimeline && (
         <TimelineView

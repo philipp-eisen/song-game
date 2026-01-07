@@ -14,7 +14,6 @@ export const gameModeValidator = v.union(
 
 export const gamePhaseValidator = v.union(
   v.literal('lobby'),
-  v.literal('awaitingStart'),
   v.literal('awaitingPlacement'),
   v.literal('awaitingReveal'),
   v.literal('revealed'),
@@ -576,17 +575,32 @@ export const start = mutation({
     }
 
     // Update remaining deck cards' deckOrder (they shift down by players.length)
-    for (let i = players.length; i < gameCardIds.length; i++) {
+    // Skip the first remaining card since we'll use it for the first round
+    for (let i = players.length + 1; i < gameCardIds.length; i++) {
       await ctx.db.patch("gameCards", gameCardIds[i], {
-        deckOrder: i - players.length,
+        deckOrder: i - players.length - 1,
       })
     }
 
-    // Update game state
+    // Draw the first card for the first player's turn
+    const firstRoundCardId = gameCardIds[players.length]
+    await ctx.db.patch("gameCards", firstRoundCardId, {
+      state: 'inRound',
+      deckOrder: undefined,
+    })
+
+    // Update game state with first round already set up
     await ctx.db.patch("games", args.gameId, {
-      phase: 'awaitingStart',
+      phase: 'awaitingPlacement',
       currentTurnSeatIndex: 0,
       startedAt: Date.now(),
+      currentRound: {
+        cardId: firstRoundCardId,
+        activePlayerId: players[0]._id,
+        placementIndex: undefined,
+        bets: [],
+        tokenClaimers: [],
+      },
     })
 
     return null

@@ -1,5 +1,12 @@
 import { useMutation } from 'convex/react'
 import { useState } from 'react'
+import {
+  ArrowRightIcon,
+  CoinIcon,
+  EyeIcon,
+  FastForwardIcon,
+} from '@phosphor-icons/react'
+
 import { api } from '../../../convex/_generated/api'
 import { BetControls } from './bet-controls'
 import type { GameData, PlayerData } from './types'
@@ -21,7 +28,6 @@ export function TurnControls({
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  const startRound = useMutation(api.turns.startRound)
   const skipRound = useMutation(api.turns.skipRound)
   const revealCard = useMutation(api.turns.revealCard)
   const resolveRound = useMutation(api.turns.resolveRound)
@@ -40,28 +46,35 @@ export function TurnControls({
     }
   }
 
-  // awaitingStart phase
-  if (game.phase === 'awaitingStart' && isActivePlayer) {
+  // awaitingPlacement phase - active player sees the drag-drop UI in GameControlsBar
+  if (game.phase === 'awaitingPlacement' && isActivePlayer) {
     return (
-      <div className="space-y-4">
-        <p>Draw a card to start your turn</p>
-        <div className="flex gap-2">
-          <Button
-            onClick={() =>
-              handleAction(() =>
-                startRound({
-                  gameId: game._id,
-                  actingPlayerId: activePlayer._id,
-                }),
-              )
-            }
-            disabled={loading}
-          >
-            Draw Card
-          </Button>
+      <div className="space-y-2">
+        <div className="flex flex-wrap gap-2">
+          {game.useTokens && activePlayer.tokenBalance >= 1 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() =>
+                handleAction(() =>
+                  skipRound({
+                    gameId: game._id,
+                    actingPlayerId: activePlayer._id,
+                  }),
+                )
+              }
+              disabled={loading}
+            >
+              <FastForwardIcon weight="duotone" className="size-4" />
+              Skip Song (1 token)
+            </Button>
+          )}
           {game.useTokens && activePlayer.tokenBalance >= 3 && (
             <Button
               variant="outline"
+              size="sm"
+              className="gap-1.5"
               onClick={() =>
                 handleAction(() =>
                   tradeTokensForCard({
@@ -72,36 +85,11 @@ export function TurnControls({
               }
               disabled={loading}
             >
-              Trade 3 Tokens for Auto-Card
+              <CoinIcon weight="duotone" className="size-4" />
+              Auto-place (3 tokens)
             </Button>
           )}
         </div>
-        {error && <p className="text-sm text-destructive">{error}</p>}
-      </div>
-    )
-  }
-
-  // awaitingPlacement phase - active player sees the drag-drop UI in GameControlsBar
-  if (game.phase === 'awaitingPlacement' && isActivePlayer) {
-    return (
-      <div className="space-y-2">
-        {game.useTokens && activePlayer.tokenBalance >= 1 && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() =>
-              handleAction(() =>
-                skipRound({
-                  gameId: game._id,
-                  actingPlayerId: activePlayer._id,
-                }),
-              )
-            }
-            disabled={loading}
-          >
-            Skip (1 Token)
-          </Button>
-        )}
         {error && <p className="text-sm text-destructive">{error}</p>}
       </div>
     )
@@ -112,10 +100,9 @@ export function TurnControls({
     const myPlayer = game.players.find((p) => p.isCurrentUser)
     if (myPlayer && myPlayer.tokenBalance >= 1) {
       return (
-        <div className="space-y-4">
-          <p>{activePlayer.displayName} is placing their card...</p>
+        <div className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            You can bet on where you think the card should go (costs 1 token)
+            Bet on where the card should go (costs 1 token)
           </p>
           <BetControls game={game} myPlayer={myPlayer} />
         </div>
@@ -127,23 +114,46 @@ export function TurnControls({
   if (game.phase === 'awaitingReveal') {
     if (isActivePlayer || isHost) {
       return (
-        <div className="space-y-4">
-          <p>
-            Card has been placed at position {game.currentRound?.placementIndex}
-          </p>
-          <Button
-            onClick={() =>
-              handleAction(() =>
-                revealCard({
-                  gameId: game._id,
-                  actingPlayerId: activePlayer._id,
-                }),
-              )
-            }
-            disabled={loading}
-          >
-            Reveal Card
-          </Button>
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="lg"
+              className="gap-2"
+              onClick={() =>
+                handleAction(() =>
+                  revealCard({
+                    gameId: game._id,
+                    actingPlayerId: activePlayer._id,
+                  }),
+                )
+              }
+              disabled={loading}
+            >
+              <EyeIcon weight="duotone" className="size-5" />
+              Reveal the Answer!
+            </Button>
+            {isActivePlayer &&
+              game.useTokens &&
+              activePlayer.tokenBalance >= 3 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() =>
+                    handleAction(() =>
+                      tradeTokensForCard({
+                        gameId: game._id,
+                        actingPlayerId: activePlayer._id,
+                      }),
+                    )
+                  }
+                  disabled={loading}
+                >
+                  <CoinIcon weight="duotone" className="size-4" />
+                  Auto-place (3 tokens)
+                </Button>
+              )}
+          </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
       )
@@ -153,10 +163,9 @@ export function TurnControls({
       const myPlayer = game.players.find((p) => p.isCurrentUser)
       if (myPlayer && myPlayer.tokenBalance >= 1) {
         return (
-          <div className="space-y-4">
-            <p>
-              Card placed at position {game.currentRound?.placementIndex}.
-              Waiting for reveal...
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Last chance to place your bet!
             </p>
             <BetControls game={game} myPlayer={myPlayer} />
           </div>
@@ -177,6 +186,7 @@ export function TurnControls({
         <div className="flex flex-wrap gap-2">
           {(isActivePlayer || isHost) && (
             <Button
+              className="gap-2"
               onClick={() =>
                 handleAction(() =>
                   resolveRound({
@@ -187,15 +197,38 @@ export function TurnControls({
               }
               disabled={loading}
             >
-              Resolve Round
+              <ArrowRightIcon weight="duotone" className="size-4" />
+              Continue
             </Button>
           )}
+          {isActivePlayer &&
+            game.useTokens &&
+            activePlayer.tokenBalance >= 3 && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() =>
+                  handleAction(() =>
+                    tradeTokensForCard({
+                      gameId: game._id,
+                      actingPlayerId: activePlayer._id,
+                    }),
+                  )
+                }
+                disabled={loading}
+              >
+                <CoinIcon weight="duotone" className="size-4" />
+                Auto-place (3 tokens)
+              </Button>
+            )}
           {game.useTokens &&
             myPlayer &&
             !alreadyClaimed &&
             myPlayer.tokenBalance < game.maxTokens && (
               <Button
                 variant="outline"
+                className="gap-1.5"
                 onClick={() =>
                   handleAction(() =>
                     claimGuessToken({
@@ -206,7 +239,8 @@ export function TurnControls({
                 }
                 disabled={loading}
               >
-                Claim Guess Token (+1)
+                <CoinIcon weight="duotone" className="size-4" />
+                Claim Bonus Token
               </Button>
             )}
         </div>
@@ -215,9 +249,6 @@ export function TurnControls({
     )
   }
 
-  return (
-    <p className="text-muted-foreground">
-      Waiting for {activePlayer.displayName}...
-    </p>
-  )
+  // Non-active player waiting - no text needed since TurnPrompt handles this
+  return null
 }

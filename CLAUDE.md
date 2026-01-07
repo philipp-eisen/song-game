@@ -39,7 +39,7 @@ Song Game (Songeras) is a collaborative music-based timeline game where players 
 - **timelineEntries**: Ordered cards in player timelines
 
 ### Game State Machine
-`lobby` → `awaitingStart` → `awaitingPlacement` → `awaitingReveal` → `revealed` → `finished`
+`lobby` → `awaitingPlacement` → `awaitingReveal` → `revealed` → `finished`
 
 ### Authentication
 - Server-side auth via `/src/lib/auth-server.ts`

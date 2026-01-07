@@ -4,7 +4,6 @@ import { v } from 'convex/values'
 // Game phases for the state machine
 const gamePhaseValidator = v.union(
   v.literal('lobby'),
-  v.literal('awaitingStart'),
   v.literal('awaitingPlacement'),
   v.literal('awaitingReveal'),
   v.literal('revealed'),
