@@ -250,7 +250,7 @@ function RevealedCardFace({
               scale: { delay: 0.5, duration: 0.4, repeat: 2 },
             }}
           >
-            <CheckCircleIcon className="h-6 w-6 text-white" weight="fill" />
+            <CheckCircleIcon className="h-6 w-6 text-white" weight="duotone" />
           </motion.div>
         )}
 
@@ -267,7 +267,7 @@ function RevealedCardFace({
               stiffness: 200,
             }}
           >
-            <XCircleIcon className="h-6 w-6 text-white" weight="fill" />
+            <XCircleIcon className="h-6 w-6 text-white" weight="duotone" />
           </motion.div>
         )}
       </Card>
