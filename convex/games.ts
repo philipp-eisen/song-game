@@ -649,6 +649,19 @@ const gameResponseValidator = v.object({
       ),
     }),
   ),
+  // Round-based winning condition state
+  finalRound: v.optional(
+    v.object({
+      triggerSeatIndex: v.number(),
+      triggerPlayerId: v.id('gamePlayers'),
+    }),
+  ),
+  tiebreaker: v.optional(
+    v.object({
+      playerIds: v.array(v.id('gamePlayers')),
+      targetCards: v.number(),
+    }),
+  ),
   deckRemaining: v.number(),
 })
 
@@ -766,6 +779,8 @@ async function buildGameResponse(
       isCurrentUser: p.kind === 'user' && p.userId === identity.subject,
     })),
     currentRound,
+    finalRound: game.finalRound,
+    tiebreaker: game.tiebreaker,
     deckRemaining: deckCards.length,
   }
 }

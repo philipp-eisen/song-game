@@ -224,6 +224,7 @@ async function drawNextCard(
 
 /**
  * Advance to the next player's turn
+ * In tiebreaker mode, only advances to players in the tiebreak
  */
 async function advanceTurn(ctx: MutationCtx, game: Game): Promise<number> {
   const players = await ctx.db
@@ -231,8 +232,107 @@ async function advanceTurn(ctx: MutationCtx, game: Game): Promise<number> {
     .withIndex('by_gameId', (q) => q.eq('gameId', game._id))
     .collect()
 
+  players.sort((a, b) => a.seatIndex - b.seatIndex)
+
+  if (game.tiebreaker) {
+    // In tiebreaker mode, find next player in the tiebreak list
+    const tiebreakPlayerIds = new Set(game.tiebreaker.playerIds.map((id) => id.toString()))
+    let nextSeatIndex = game.currentTurnSeatIndex
+
+    // Find the next tiebreak player
+    for (let i = 1; i <= players.length; i++) {
+      const candidateSeatIndex = (game.currentTurnSeatIndex + i) % players.length
+      const candidatePlayer = players.find((p) => p.seatIndex === candidateSeatIndex)
+      if (candidatePlayer && tiebreakPlayerIds.has(candidatePlayer._id.toString())) {
+        nextSeatIndex = candidateSeatIndex
+        break
+      }
+    }
+    return nextSeatIndex
+  }
+
   const nextSeatIndex = (game.currentTurnSeatIndex + 1) % players.length
   return nextSeatIndex
+}
+
+/**
+ * Check if the final round is complete (we've cycled back to the trigger seat)
+ */
+function isFinalRoundComplete(
+  nextSeatIndex: number,
+  finalRound: { triggerSeatIndex: number } | undefined,
+): boolean {
+  if (!finalRound) return false
+
+  // Final round is complete when next turn would be the trigger seat
+  // This means everyone after the trigger has had their turn
+  return nextSeatIndex === finalRound.triggerSeatIndex
+}
+
+/**
+ * Determine the winner(s) after the final round completes
+ * Returns a single winner ID if there's a clear winner, or an array of tied player IDs
+ */
+async function determineWinners(
+  ctx: MutationCtx,
+  gameId: Id<'games'>,
+): Promise<{ winnerId?: Id<'gamePlayers'>; tiedPlayerIds?: Array<Id<'gamePlayers'>> }> {
+  const players = await ctx.db
+    .query('gamePlayers')
+    .withIndex('by_gameId', (q) => q.eq('gameId', gameId))
+    .collect()
+
+  // Get timeline counts for all players
+  const playerCardCounts: Array<{ playerId: Id<'gamePlayers'>; cardCount: number }> = []
+
+  for (const player of players) {
+    const timeline = await ctx.db
+      .query('timelineEntries')
+      .withIndex('by_playerId', (q) => q.eq('playerId', player._id))
+      .collect()
+    playerCardCounts.push({ playerId: player._id, cardCount: timeline.length })
+  }
+
+  // Find the maximum card count
+  const maxCardCount = Math.max(...playerCardCounts.map((p) => p.cardCount))
+
+  // Find all players with the max card count
+  const topPlayers = playerCardCounts.filter((p) => p.cardCount === maxCardCount)
+
+  if (topPlayers.length === 1) {
+    // Clear winner
+    return { winnerId: topPlayers[0].playerId }
+  } else {
+    // Tie
+    return { tiedPlayerIds: topPlayers.map((p) => p.playerId) }
+  }
+}
+
+/**
+ * Check if any player has reached or exceeded the win condition
+ */
+async function checkWinConditionReached(
+  ctx: MutationCtx,
+  gameId: Id<'games'>,
+  winCondition: number,
+): Promise<boolean> {
+  const players = await ctx.db
+    .query('gamePlayers')
+    .withIndex('by_gameId', (q) => q.eq('gameId', gameId))
+    .collect()
+
+  for (const player of players) {
+    const timeline = await ctx.db
+      .query('timelineEntries')
+      .withIndex('by_playerId', (q) => q.eq('playerId', player._id))
+      .collect()
+
+    if (timeline.length >= winCondition) {
+      return true
+    }
+  }
+
+  return false
 }
 
 // ===========================================
@@ -778,52 +878,188 @@ export const resolveRound = mutation({
       }
     }
 
-    // Check win condition
-    let winnerId: Id<'gamePlayers'> | undefined
-
-    // Get all players and check timeline sizes
+    // Get all players for various checks
     const allPlayers = await ctx.db
       .query('gamePlayers')
       .withIndex('by_gameId', (q) => q.eq('gameId', game._id))
       .collect()
 
-    for (const player of allPlayers) {
-      const playerTimeline = await ctx.db
-        .query('timelineEntries')
-        .withIndex('by_playerId', (q) => q.eq('playerId', player._id))
-        .collect()
+    allPlayers.sort((a, b) => a.seatIndex - b.seatIndex)
 
-      if (playerTimeline.length >= game.winCondition) {
-        winnerId = player._id
-        break
-      }
-    }
-
-    // Advance turn
+    // Calculate next turn
     const nextSeatIndex = await advanceTurn(ctx, game)
 
-    if (winnerId) {
-      // Game over
-      await ctx.db.patch('games', args.gameId, {
-        phase: 'finished',
-        currentRound: undefined,
-        winnerId,
-        finishedAt: Date.now(),
-      })
-    } else {
-      // Continue to next turn
+    // Check if any player has reached the win condition
+    const winConditionReached = await checkWinConditionReached(
+      ctx,
+      game._id,
+      game.winCondition,
+    )
+
+    let winnerId: Id<'gamePlayers'> | undefined
+
+    // Handle tiebreaker mode
+    if (game.tiebreaker) {
+      // In tiebreaker mode, check if a tiebreaker player just gained a card
+      // (they become the winner)
+      const tiebreakPlayerIds = new Set(game.tiebreaker.playerIds.map((id) => id.toString()))
+
+      // Check if the card went to a tiebreaker player
+      if (cardWentTo === 'activePlayer' && tiebreakPlayerIds.has(activePlayer._id.toString())) {
+        winnerId = activePlayer._id
+      } else if (cardWentTo === 'bettor' && winningBettorId) {
+        const winningBettor = await ctx.db.get('gamePlayers', winningBettorId)
+        if (winningBettor && tiebreakPlayerIds.has(winningBettor._id.toString())) {
+          winnerId = winningBettorId
+        }
+      }
+
+      if (winnerId) {
+        // Tiebreaker winner found
+        await ctx.db.patch('games', args.gameId, {
+          phase: 'finished',
+          currentRound: undefined,
+          winnerId,
+          finishedAt: Date.now(),
+        })
+
+        return {
+          placementCorrect,
+          cardWentTo,
+          winningBettorId,
+          winnerId,
+        }
+      }
+
+      // Continue tiebreaker
       await ctx.db.patch('games', args.gameId, {
         phase: 'awaitingStart',
         currentTurnSeatIndex: nextSeatIndex,
         currentRound: undefined,
       })
+
+      return {
+        placementCorrect,
+        cardWentTo,
+        winningBettorId,
+        winnerId: undefined,
+      }
     }
+
+    // Handle final round mode
+    if (game.finalRound) {
+      // Check if final round is complete
+      if (isFinalRoundComplete(nextSeatIndex, game.finalRound)) {
+        // Final round complete - determine winner(s)
+        const result = await determineWinners(ctx, game._id)
+
+        if (result.winnerId) {
+          // Clear winner
+          await ctx.db.patch('games', args.gameId, {
+            phase: 'finished',
+            currentRound: undefined,
+            finalRound: undefined,
+            winnerId: result.winnerId,
+            finishedAt: Date.now(),
+          })
+
+          return {
+            placementCorrect,
+            cardWentTo,
+            winningBettorId,
+            winnerId: result.winnerId,
+          }
+        } else if (result.tiedPlayerIds && result.tiedPlayerIds.length > 1) {
+          // Tie - enter tiebreaker mode
+          // Get the tied player with the lowest seat index to start
+          const tiedPlayers = allPlayers.filter((p) =>
+            result.tiedPlayerIds!.some((id) => id.toString() === p._id.toString()),
+          )
+          tiedPlayers.sort((a, b) => a.seatIndex - b.seatIndex)
+
+          // Find the first tiebreaker player after current seat
+          let tiebreakerStartSeat = tiedPlayers[0].seatIndex
+          for (const tp of tiedPlayers) {
+            if (tp.seatIndex > game.currentTurnSeatIndex) {
+              tiebreakerStartSeat = tp.seatIndex
+              break
+            }
+          }
+
+          // Get target cards (they're all tied at this count)
+          const tiedTimeline = await ctx.db
+            .query('timelineEntries')
+            .withIndex('by_playerId', (q) => q.eq('playerId', tiedPlayers[0]._id))
+            .collect()
+
+          await ctx.db.patch('games', args.gameId, {
+            phase: 'awaitingStart',
+            currentTurnSeatIndex: tiebreakerStartSeat,
+            currentRound: undefined,
+            finalRound: undefined,
+            tiebreaker: {
+              playerIds: result.tiedPlayerIds,
+              targetCards: tiedTimeline.length,
+            },
+          })
+
+          return {
+            placementCorrect,
+            cardWentTo,
+            winningBettorId,
+            winnerId: undefined,
+          }
+        }
+      }
+
+      // Final round not complete - continue playing
+      await ctx.db.patch('games', args.gameId, {
+        phase: 'awaitingStart',
+        currentTurnSeatIndex: nextSeatIndex,
+        currentRound: undefined,
+      })
+
+      return {
+        placementCorrect,
+        cardWentTo,
+        winningBettorId,
+        winnerId: undefined,
+      }
+    }
+
+    // Normal mode - check if we need to start final round
+    if (winConditionReached) {
+      // Start the final round - other players get to complete their turns
+      await ctx.db.patch('games', args.gameId, {
+        phase: 'awaitingStart',
+        currentTurnSeatIndex: nextSeatIndex,
+        currentRound: undefined,
+        finalRound: {
+          triggerSeatIndex: nextSeatIndex,
+          triggerPlayerId: activePlayer._id,
+        },
+      })
+
+      return {
+        placementCorrect,
+        cardWentTo,
+        winningBettorId,
+        winnerId: undefined,
+      }
+    }
+
+    // Continue to next turn (normal play)
+    await ctx.db.patch('games', args.gameId, {
+      phase: 'awaitingStart',
+      currentTurnSeatIndex: nextSeatIndex,
+      currentRound: undefined,
+    })
 
     return {
       placementCorrect,
       cardWentTo,
       winningBettorId,
-      winnerId,
+      winnerId: undefined,
     }
   },
 })
@@ -893,17 +1129,115 @@ export const tradeTokensForCard = mutation({
       insertIndex,
     )
 
-    // Check win condition
-    const newTimeline = await ctx.db
-      .query('timelineEntries')
-      .withIndex('by_playerId', (q) => q.eq('playerId', activePlayer._id))
+    // Get all players for various checks
+    const allPlayers = await ctx.db
+      .query('gamePlayers')
+      .withIndex('by_gameId', (q) => q.eq('gameId', game._id))
       .collect()
 
-    if (newTimeline.length >= game.winCondition) {
+    allPlayers.sort((a, b) => a.seatIndex - b.seatIndex)
+
+    // Handle tiebreaker mode - gaining a card means winning
+    if (game.tiebreaker) {
+      const tiebreakPlayerIds = new Set(game.tiebreaker.playerIds.map((id) => id.toString()))
+
+      if (tiebreakPlayerIds.has(activePlayer._id.toString())) {
+        // This tiebreaker player gained a card - they win!
+        await ctx.db.patch('games', args.gameId, {
+          phase: 'finished',
+          winnerId: activePlayer._id,
+          finishedAt: Date.now(),
+        })
+
+        return {
+          cardId: card._id,
+          insertedAt: insertIndex,
+        }
+      }
+    }
+
+    // Check if win condition is reached
+    const winConditionReached = await checkWinConditionReached(
+      ctx,
+      game._id,
+      game.winCondition,
+    )
+
+    // Handle final round mode
+    if (game.finalRound) {
+      // Calculate what the next seat would be after this player's turn
+      const nextSeatIndex = await advanceTurn(ctx, game)
+
+      // Check if final round would complete
+      if (isFinalRoundComplete(nextSeatIndex, game.finalRound)) {
+        // Final round complete - determine winner(s)
+        const result = await determineWinners(ctx, game._id)
+
+        if (result.winnerId) {
+          // Clear winner
+          await ctx.db.patch('games', args.gameId, {
+            phase: 'finished',
+            finalRound: undefined,
+            winnerId: result.winnerId,
+            finishedAt: Date.now(),
+          })
+
+          return {
+            cardId: card._id,
+            insertedAt: insertIndex,
+          }
+        } else if (result.tiedPlayerIds && result.tiedPlayerIds.length > 1) {
+          // Tie - enter tiebreaker mode
+          const tiedPlayers = allPlayers.filter((p) =>
+            result.tiedPlayerIds!.some((id) => id.toString() === p._id.toString()),
+          )
+          tiedPlayers.sort((a, b) => a.seatIndex - b.seatIndex)
+
+          let tiebreakerStartSeat = tiedPlayers[0].seatIndex
+          for (const tp of tiedPlayers) {
+            if (tp.seatIndex > game.currentTurnSeatIndex) {
+              tiebreakerStartSeat = tp.seatIndex
+              break
+            }
+          }
+
+          const tiedTimeline = await ctx.db
+            .query('timelineEntries')
+            .withIndex('by_playerId', (q) => q.eq('playerId', tiedPlayers[0]._id))
+            .collect()
+
+          await ctx.db.patch('games', args.gameId, {
+            currentTurnSeatIndex: tiebreakerStartSeat,
+            finalRound: undefined,
+            tiebreaker: {
+              playerIds: result.tiedPlayerIds,
+              targetCards: tiedTimeline.length,
+            },
+          })
+
+          return {
+            cardId: card._id,
+            insertedAt: insertIndex,
+          }
+        }
+      }
+
+      // Final round continues
+      return {
+        cardId: card._id,
+        insertedAt: insertIndex,
+      }
+    }
+
+    // Normal mode - check if we need to start final round
+    if (winConditionReached) {
+      const nextSeatIndex = await advanceTurn(ctx, game)
+
       await ctx.db.patch('games', args.gameId, {
-        phase: 'finished',
-        winnerId: activePlayer._id,
-        finishedAt: Date.now(),
+        finalRound: {
+          triggerSeatIndex: nextSeatIndex,
+          triggerPlayerId: activePlayer._id,
+        },
       })
     }
 
