@@ -5,20 +5,18 @@ import {
   HourglassIcon,
 } from '@phosphor-icons/react'
 
-import type { GameData, PlayerData } from './types'
+import type { GameData } from './types'
 import { cn } from '@/lib/utils'
+import { useActivePlayer, useIsActivePlayer } from '@/stores/play-game-store'
 
 interface TurnPromptProps {
   game: GameData
-  activePlayer: PlayerData | undefined
-  isActivePlayer: boolean
 }
 
-export function TurnPrompt({
-  game,
-  activePlayer,
-  isActivePlayer,
-}: TurnPromptProps) {
+export function TurnPrompt({ game }: TurnPromptProps) {
+  const activePlayer = useActivePlayer()
+  const isActivePlayer = useIsActivePlayer()
+
   const { phase } = game
   const playerName = activePlayer?.displayName ?? 'Someone'
 

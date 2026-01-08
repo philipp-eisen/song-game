@@ -1,39 +1,46 @@
 import { useMutation } from 'convex/react'
 import { useState } from 'react'
 import { api } from '../../../convex/_generated/api'
-import type { GameData, PlayerData } from './types'
+import type { GameData } from './types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  useActionState,
+  useMyPlayer,
+  useWrapAction,
+} from '@/stores/play-game-store'
 
 interface BetControlsProps {
   game: GameData
-  myPlayer: PlayerData
 }
 
-export function BetControls({ game, myPlayer }: BetControlsProps) {
+export function BetControls({ game }: BetControlsProps) {
+  const myPlayer = useMyPlayer()
+  const { loading, error } = useActionState()
+  const wrapAction = useWrapAction()
+
+  // Form state stays local
   const [selectedSlot, setSelectedSlot] = useState<number | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
 
   const placeBet = useMutation(api.turns.placeBet)
 
   const handleBet = async () => {
-    if (selectedSlot === null) return
-    setError(null)
-    setLoading(true)
+    if (selectedSlot === null || !myPlayer) return
     try {
-      await placeBet({
-        gameId: game._id,
-        actingPlayerId: myPlayer._id,
-        slotIndex: selectedSlot,
+      await wrapAction(async () => {
+        await placeBet({
+          gameId: game._id,
+          actingPlayerId: myPlayer._id,
+          slotIndex: selectedSlot,
+        })
+        setSelectedSlot(null)
       })
-      setSelectedSlot(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to place bet')
-    } finally {
-      setLoading(false)
+    } catch {
+      // Error is already handled by wrapAction
     }
   }
+
+  if (!myPlayer) return null
 
   const existingBets = game.currentRound?.bets ?? []
   const alreadyBet = existingBets.some((b) => b.bettorPlayerId === myPlayer._id)

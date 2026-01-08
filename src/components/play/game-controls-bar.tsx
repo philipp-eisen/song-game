@@ -10,7 +10,7 @@ import {
 } from '@dnd-kit/core'
 import { useMutation } from 'convex/react'
 import { useQuery } from '@tanstack/react-query'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { MusicNoteIcon } from '@phosphor-icons/react'
 
 import { api } from '../../../convex/_generated/api'
@@ -29,6 +29,20 @@ import {
   getCurrentRoundSongPreviewQuery,
 } from '@/lib/convex-queries'
 import { PreviewPlayer } from '@/components/preview-player'
+import {
+  useActionState,
+  useActivePlayer,
+  useActivePlayerTimeline,
+  useDndState,
+  useIsActivePlayer,
+  useIsExiting,
+  useMyPlayer,
+  usePlayGameStore,
+  useSetDndActiveId,
+  useSetDndItems,
+  useSetWasExternalDrag,
+  useTriggerExitAnimation,
+} from '@/stores/play-game-store'
 
 // Custom modifier to snap the drag overlay so the cursor is at the center of the card
 const snapCenterToCursor: Modifier = ({
@@ -75,81 +89,49 @@ export function GameControlsBar({ game, timelines }: GameControlsBarProps) {
   )
   const { data: currentCard } = useQuery(getCurrentRoundCardQuery(game._id))
 
-  const isHost = game.isCurrentUserHost
+  // Get derived state from store
+  const activePlayer = useActivePlayer()
+  const isActivePlayer = useIsActivePlayer()
+  const myPlayer = useMyPlayer()
+  const activePlayerTimeline = useActivePlayerTimeline()
 
-  const activePlayer = game.players.find(
-    (p) => p.seatIndex === game.currentTurnSeatIndex,
-  )
-  const isActivePlayer =
-    activePlayer?.isCurrentUser || (activePlayer?.kind === 'local' && isHost)
+  // Get DnD state from store
+  const { items, activeId, wasExternalDrag } = useDndState()
+  const setDndItems = useSetDndItems()
+  const setDndActiveId = useSetDndActiveId()
+  const setWasExternalDrag = useSetWasExternalDrag()
+
+  // Get action state from store
+  const { loading: isPlacing, error: placementError } = useActionState()
+
+  // Get animation state from store
+  const isExiting = useIsExiting()
+  const triggerExitAnimation = useTriggerExitAnimation()
 
   const shouldShowDropzone =
     isActivePlayer &&
     (game.phase === 'awaitingPlacement' || game.phase === 'awaitingReveal') &&
     !!activePlayer
 
-  const activePlayerTimeline = timelines.find(
-    (t) => t.playerId === activePlayer?._id,
-  )
-
   const placeCard = useMutation(api.turns.placeCard)
-  const [placementError, setPlacementError] = useState<string | null>(null)
-  const [isPlacing, setIsPlacing] = useState(false)
 
-  // Drag-and-drop state management
-  const { currentRound } = game
-  const isRepositioning = currentRound?.placementIndex !== undefined
-
-  const initialItems = useMemo(() => {
-    const cardIds = activePlayerTimeline?.cards.map((c) => c._id as string) ?? []
-    const placementIdx = currentRound?.placementIndex
-    if (isRepositioning && placementIdx !== undefined) {
-      const items = [...cardIds]
-      items.splice(placementIdx, 0, MYSTERY_CARD_ID)
-      return items
-    }
-    return cardIds
-  }, [activePlayerTimeline?.cards, currentRound?.placementIndex, isRepositioning])
-
-  const [items, setItems] = useState<Array<string>>(initialItems)
-  const [activeId, setActiveId] = useState<string | null>(null)
-  const wasExternalDragRef = useRef(false)
+  // We need a ref to access current items in DnD callbacks without stale closures
   const itemsRef = useRef(items)
-
   useEffect(() => {
     itemsRef.current = items
   }, [items])
 
-  // Reset state when entering placement phase
-  const lastPhaseRef = useRef<GameData['phase']>(game.phase)
-  useEffect(() => {
-    const prevPhase = lastPhaseRef.current
-    lastPhaseRef.current = game.phase
+  // DnD Sync Effects - Two coordinated effects handle timeline synchronization:
+  //
+  // Effect 1 (below): Syncs DnD items when timeline cards change from server.
+  //   - Filters out mystery card before comparing to detect actual card changes
+  //   - Preserves mystery card position during repositioning (placementIndex set)
+  //
+  // Effect 2 (further below): Ensures mystery card exists during repositioning.
+  //   - Only runs when placementIndex is defined but mystery card is missing
+  //   - Handles the case where repositioning starts after cards are already synced
 
-    if (game.phase !== 'awaitingPlacement') return
-    if (prevPhase === 'awaitingPlacement') return
-    if (game.currentRound?.placementIndex !== undefined) return
-
-    const cardIds = activePlayerTimeline?.cards.map((c) => c._id as string) ?? []
-    itemsRef.current = cardIds
-    setItems(cardIds)
-    setActiveId(null)
-    wasExternalDragRef.current = false
-  }, [game.phase, game.currentRound?.placementIndex, activePlayerTimeline?.cards])
-
-  // Ensure mystery card is in list during repositioning
-  useEffect(() => {
-    const placementIdx = game.currentRound?.placementIndex
-    if (placementIdx === undefined) return
-    if (items.includes(MYSTERY_CARD_ID)) return
-
-    const cardIds = activePlayerTimeline?.cards.map((c) => c._id as string) ?? []
-    const newItems = [...cardIds]
-    newItems.splice(Math.min(placementIdx, cardIds.length), 0, MYSTERY_CARD_ID)
-    setItems(newItems)
-  }, [game.currentRound?.placementIndex, items, activePlayerTimeline?.cards])
-
-  // Sync items when timeline cards change
+  // Effect 1: Sync DnD items when timeline cards change (handle external server updates)
   useEffect(() => {
     const cardIds = activePlayerTimeline?.cards.map((c) => c._id as string) ?? []
     const currentCardIds = items.filter((id) => id !== MYSTERY_CARD_ID)
@@ -164,7 +146,7 @@ export function GameControlsBar({ game, timelines }: GameControlsBarProps) {
         game.currentRound?.placementIndex !== undefined
 
       if (!shouldPreserveMystery) {
-        setItems(cardIds)
+        setDndItems(cardIds)
         return
       }
 
@@ -172,9 +154,22 @@ export function GameControlsBar({ game, timelines }: GameControlsBarProps) {
       const newItems = [...cardIds]
       const insertAt = Math.min(mysteryIndex, cardIds.length)
       newItems.splice(insertAt, 0, MYSTERY_CARD_ID)
-      setItems(newItems)
+      setDndItems(newItems)
     }
-  }, [activePlayerTimeline?.cards, items, game.currentRound?.placementIndex])
+  }, [activePlayerTimeline?.cards, items, game.currentRound?.placementIndex, setDndItems])
+
+  // Effect 2: Ensure mystery card is in list during repositioning
+  // This handles the case when placementIndex becomes defined after Effect 1 has run
+  useEffect(() => {
+    const placementIdx = game.currentRound?.placementIndex
+    if (placementIdx === undefined) return
+    if (items.includes(MYSTERY_CARD_ID)) return
+
+    const cardIds = activePlayerTimeline?.cards.map((c) => c._id as string) ?? []
+    const newItems = [...cardIds]
+    newItems.splice(Math.min(placementIdx, cardIds.length), 0, MYSTERY_CARD_ID)
+    setDndItems(newItems)
+  }, [game.currentRound?.placementIndex, items, activePlayerTimeline?.cards, setDndItems])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -182,30 +177,31 @@ export function GameControlsBar({ game, timelines }: GameControlsBarProps) {
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
   )
 
+  // Get wrapAction from store for placement
+  const wrapAction = usePlayGameStore((state) => state.wrapAction)
+
   const handlePlaceCard = useCallback(async (insertIndex: number) => {
     if (!activePlayer) return
 
-    setPlacementError(null)
-    setIsPlacing(true)
     try {
-      await placeCard({
-        gameId: game._id,
-        actingPlayerId: activePlayer._id,
-        insertIndex,
+      await wrapAction(async () => {
+        await placeCard({
+          gameId: game._id,
+          actingPlayerId: activePlayer._id,
+          insertIndex,
+        })
       })
-    } catch (err) {
-      setPlacementError(err instanceof Error ? err.message : 'Placement failed')
-    } finally {
-      setIsPlacing(false)
+    } catch {
+      // Error is already handled by wrapAction
     }
-  }, [activePlayer, game._id, placeCard])
+  }, [activePlayer, game._id, placeCard, wrapAction])
 
   const handleDragStart = useCallback(
     (event: { active: { id: string | number } }) => {
-      setActiveId(String(event.active.id))
-      wasExternalDragRef.current = false
+      setDndActiveId(String(event.active.id))
+      setWasExternalDrag(false)
     },
-    [],
+    [setDndActiveId, setWasExternalDrag],
   )
 
   const handleDragOver = useCallback((event: DragOverEvent) => {
@@ -229,33 +225,33 @@ export function GameControlsBar({ game, timelines }: GameControlsBarProps) {
     const newItems = [...currentItems]
     newItems.splice(insertAt, 0, MYSTERY_CARD_ID)
     itemsRef.current = newItems
-    wasExternalDragRef.current = true
-    setItems(newItems)
-  }, [])
+    setWasExternalDrag(true)
+    setDndItems(newItems)
+  }, [setWasExternalDrag, setDndItems])
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       const { active, over } = event
       const activeItemId = String(active.id)
-      setActiveId(null)
+      setDndActiveId(null)
 
       if (isPlacing) {
-        if (activeItemId === MYSTERY_CARD_ID && wasExternalDragRef.current) {
+        if (activeItemId === MYSTERY_CARD_ID && wasExternalDrag) {
           const newItems = itemsRef.current.filter((id) => id !== MYSTERY_CARD_ID)
           itemsRef.current = newItems
-          setItems(newItems)
+          setDndItems(newItems)
         }
-        wasExternalDragRef.current = false
+        setWasExternalDrag(false)
         return
       }
 
       if (!over) {
-        if (activeItemId === MYSTERY_CARD_ID && wasExternalDragRef.current) {
+        if (activeItemId === MYSTERY_CARD_ID && wasExternalDrag) {
           const newItems = itemsRef.current.filter((id) => id !== MYSTERY_CARD_ID)
           itemsRef.current = newItems
-          setItems(newItems)
+          setDndItems(newItems)
         }
-        wasExternalDragRef.current = false
+        setWasExternalDrag(false)
         return
       }
 
@@ -267,13 +263,13 @@ export function GameControlsBar({ game, timelines }: GameControlsBarProps) {
         if (!newItems.includes(MYSTERY_CARD_ID)) {
           newItems = [MYSTERY_CARD_ID]
           itemsRef.current = newItems
-          setItems(newItems)
+          setDndItems(newItems)
         }
         const newMysteryIndex = newItems.indexOf(MYSTERY_CARD_ID)
         if (newMysteryIndex !== -1) {
           handlePlaceCard(newMysteryIndex)
         }
-        wasExternalDragRef.current = false
+        setWasExternalDrag(false)
         return
       }
 
@@ -282,7 +278,7 @@ export function GameControlsBar({ game, timelines }: GameControlsBarProps) {
       const overIndex = currentItems.indexOf(overId)
 
       if (oldIndex === -1 || overIndex === -1) {
-        wasExternalDragRef.current = false
+        setWasExternalDrag(false)
         return
       }
 
@@ -296,21 +292,21 @@ export function GameControlsBar({ game, timelines }: GameControlsBarProps) {
         result.splice(overIndex, 0, removed)
         newItems = result
         itemsRef.current = newItems
-        setItems(newItems)
+        setDndItems(newItems)
       }
 
       const newMysteryIndex = newItems.indexOf(MYSTERY_CARD_ID)
       if (
         activeItemId === MYSTERY_CARD_ID &&
         newMysteryIndex !== -1 &&
-        (didMove || wasExternalDragRef.current)
+        (didMove || wasExternalDrag)
       ) {
         handlePlaceCard(newMysteryIndex)
       }
 
-      wasExternalDragRef.current = false
+      setWasExternalDrag(false)
     },
-    [isPlacing, handlePlaceCard],
+    [isPlacing, wasExternalDrag, handlePlaceCard, setDndActiveId, setDndItems, setWasExternalDrag],
   )
 
   const isDragging = activeId === MYSTERY_CARD_ID
@@ -326,26 +322,10 @@ export function GameControlsBar({ game, timelines }: GameControlsBarProps) {
   // Cards remaining in the deck
   const cardsRemaining = game.deckRemaining
 
-  // Find current user's player for betting controls
-  const myPlayer = game.players.find((p) => p.isCurrentUser)
-
-  // Transition state for player changes
-  const [isExiting, setIsExiting] = useState(false)
-
+  // Animation callback for resolving round
   const handleBeforeResolve = useCallback(async () => {
-    // Start the exit animation
-    setIsExiting(true)
-
-    // Wait for exit animation to complete (match the transition duration)
-    await new Promise<void>((resolve) => {
-      setTimeout(resolve, 400)
-    })
-  }, [])
-
-  // Reset exit state when player changes
-  useEffect(() => {
-    setIsExiting(false)
-  }, [activePlayer?._id])
+    await triggerExitAnimation()
+  }, [triggerExitAnimation])
 
   return (
     <DndContext
@@ -425,9 +405,6 @@ export function GameControlsBar({ game, timelines }: GameControlsBarProps) {
         <div className="flex justify-center">
           <ActionButtons
             game={game}
-            activePlayer={activePlayer}
-            isActivePlayer={isActivePlayer}
-            isHost={isHost}
             onBeforeResolve={handleBeforeResolve}
           />
         </div>
@@ -452,7 +429,7 @@ export function GameControlsBar({ game, timelines }: GameControlsBarProps) {
                 ? 'Last chance to place your bet!'
                 : 'Bet on where the card should go (costs 1 token)'}
             </p>
-            <BetControls game={game} myPlayer={myPlayer} />
+            <BetControls game={game} />
           </div>
         )}
 

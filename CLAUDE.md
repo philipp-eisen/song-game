@@ -120,6 +120,35 @@ Routes use TanStack Router conventions:
 - `routes/play.$joinCode.tsx` → `/play/:joinCode`
 - `routes/playlists_.$playlistId.tsx` → `/playlists/:playlistId`
 
+## Zustand State Management
+
+### Play Game Store
+The `/src/stores/play-game-store.ts` manages client-side state for the play route:
+- Derived game state (activePlayer, isActivePlayer, myPlayer, isHost)
+- Drag-and-drop state for card placement
+- Unified loading/error state for mutations
+
+### Usage Patterns
+- **Server state**: Keep in React Query (Convex real-time subscriptions)
+- **Derived state**: Use selector hooks (`useActivePlayer()`, `useIsActivePlayer()`)
+- **Mutations**: Wrap with `useWrapAction()` for unified loading/error handling
+- **Form state**: Keep local (e.g., `selectedSlot` in BetControls)
+
+### Example
+```typescript
+import { useActivePlayer, useIsActivePlayer, useWrapAction } from '@/stores/play-game-store'
+
+function MyComponent() {
+  const activePlayer = useActivePlayer()
+  const isActivePlayer = useIsActivePlayer()
+  const wrapAction = useWrapAction()
+
+  const handleClick = () => wrapAction(async () => {
+    await someMutation()
+  })
+}
+```
+
 ## External Documentation
 
 When using libraries, check the most recent docs using the context7 MCP tools.
