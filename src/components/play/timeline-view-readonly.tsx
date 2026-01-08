@@ -102,19 +102,17 @@ export function TimelineViewReadonly({
           <div className="mb-8 flex justify-center">{cardStack}</div>
         )}
         {/* Timeline row - animates on player change (exit only) */}
-        <div className="overflow-hidden">
+        <div className="overflow-hidden md:overflow-x-auto">
           <motion.div
             className={cn(
               'relative',
               // Mobile: vertical layout, cards centered
               'flex flex-col items-center gap-3 py-2',
               // Desktop: horizontal layout with bottom padding for year labels
-              'md:flex-row md:items-start md:justify-center md:gap-2 md:overflow-x-auto md:pb-16 md:pt-4 md:px-2',
+              'md:flex-row md:items-start md:justify-center md:gap-2 md:min-w-full md:w-max md:pb-16 md:pt-4 md:px-2',
             )}
             initial={false}
-            animate={
-              isExiting ? { x: 300, opacity: 0 } : { x: 0, opacity: 1 }
-            }
+            animate={isExiting ? { x: 300, opacity: 0 } : { x: 0, opacity: 1 }}
             transition={{ duration: 0.4, ease: 'easeOut' }}
           >
             {/* Timeline rail */}

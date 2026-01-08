@@ -66,23 +66,28 @@ export function TimelineDropArea({
   return (
     <SortableContext items={items} strategy={sortingStrategy}>
       <Card
-        className={cn('overflow-visible', isActivePlayer && 'border-2 border-primary')}
+        className={cn(
+          'overflow-visible',
+          isActivePlayer && 'border-2 border-primary',
+        )}
       >
         <CardContent className="overflow-visible py-3">
           {/* Card stack inside the card */}
           {cardStack && (
             <div className="mb-8 flex justify-center">{cardStack}</div>
           )}
-          <div className="overflow-hidden">
+          <div className="overflow-hidden md:overflow-x-auto">
             <motion.div
               className={cn(
                 'relative',
                 // Mobile: vertical layout, cards centered
                 'flex flex-col items-center gap-3 py-2',
                 // Desktop: horizontal layout with bottom padding for year labels
-                'md:flex-row md:items-start md:justify-center md:gap-2 md:overflow-x-auto md:pb-16 md:pt-4 md:px-2',
+                'md:flex-row md:items-start md:justify-center md:gap-2 md:min-w-full md:w-max md:pb-16 md:pt-4 md:px-2',
                 // Subtle highlight while dragging toward the timeline
-                isDragging && showExternalMysteryCard && 'rounded-md ring-1 ring-primary/30',
+                isDragging &&
+                  showExternalMysteryCard &&
+                  'rounded-md ring-1 ring-primary/30',
               )}
               initial={{ x: -100, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
@@ -108,9 +113,7 @@ export function TimelineDropArea({
                   const card = cardDataMap.get(id)
                   if (!card) return null
 
-                  return (
-                    <SortableTimelineCard key={id} id={id} card={card} />
-                  )
+                  return <SortableTimelineCard key={id} id={id} card={card} />
                 })
               )}
             </motion.div>

@@ -112,7 +112,7 @@ function RootDocument({ children }: { children: ReactNode }) {
                 <SidebarTrigger className="-ml-1" />
                 <ThemeToggle />
               </header>
-              <main className="min-h-0 flex-1">{children}</main>
+              <main className="min-h-0 min-w-0 flex-1">{children}</main>
             </SidebarInset>
           </SidebarProvider>
           <Toaster />
