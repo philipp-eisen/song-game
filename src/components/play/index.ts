@@ -1,20 +1,11 @@
 export { LobbyView } from './lobby-view'
 export { FinishedView } from './finished-view'
 export { GameHeader } from './game-header'
-export {
-  TimelineView,
-  TimelineViewEditable,
-  TimelineViewReadonly,
-} from './timeline-view'
-export type {
-  TimelineViewProps,
-  TimelineViewEditableProps,
-  TimelineViewReadonlyProps,
-} from './timeline-view'
+export { TimelineViewReadonly } from './timeline-view-readonly'
+export type { TimelineViewReadonlyProps } from './timeline-view-readonly'
 export { TimelineDropArea } from './timeline-drop-area'
-export { TurnControls } from './turn-controls'
 export { BetControls } from './bet-controls'
-export { ActionZone } from './action-zone'
+export { ActionButtons } from './action-zone'
 export { MysteryCardStack, MYSTERY_CARD_ID } from './mystery-card-stack'
 export { GameControlsBar } from './game-controls-bar'
 export { PlayerStatusBar } from './player-status-bar'

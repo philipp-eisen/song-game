@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
+import { useSyncGameToStore } from '@/hooks/use-sync-game-to-store'
 
 export const Route = createFileRoute('/play/$joinCode')({
   loader: async ({ context, params }) => {
@@ -163,21 +164,13 @@ function ActiveGameView({
   const { data: timelines } = useSuspenseQuery(getAllTimelinesQuery(game._id))
   const timelineData = timelines ?? []
 
-  const activePlayer = game.players.find(
-    (p) => p.seatIndex === game.currentTurnSeatIndex,
-  )
-  const isActivePlayer =
-    activePlayer?.isCurrentUser ||
-    (activePlayer?.kind === 'local' && game.isCurrentUserHost)
+  // Sync game and timeline data to Zustand store
+  useSyncGameToStore(game, timelineData)
 
   return (
     <div className="space-y-4 p-4">
       <GameHeader game={game} />
-      <TurnPrompt
-        game={game}
-        activePlayer={activePlayer}
-        isActivePlayer={!!isActivePlayer}
-      />
+      <TurnPrompt game={game} />
       <GameControlsBar game={game} timelines={timelineData} />
     </div>
   )

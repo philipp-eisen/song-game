@@ -1,5 +1,4 @@
 import { useMutation } from 'convex/react'
-import { useState } from 'react'
 import {
   ArrowRightIcon,
   CoinIcon,
@@ -8,80 +7,30 @@ import {
 } from '@phosphor-icons/react'
 
 import { api } from '../../../convex/_generated/api'
-import { MysteryCardStack } from './mystery-card-stack'
-import type { GameData, PlayerData } from './types'
+import type { GameData } from './types'
 import { Button } from '@/components/ui/button'
-
-interface ActionZoneProps {
-  game: GameData
-  activePlayer: PlayerData
-  isActivePlayer: boolean
-  isHost: boolean
-  /** Number of cards remaining in the deck */
-  cardsRemaining: number
-  /** Whether the mystery card has been placed */
-  isCardPlaced: boolean
-  /** Whether dragging is disabled */
-  dragDisabled?: boolean
-}
-
-export function ActionZone({
-  game,
-  activePlayer,
-  isActivePlayer,
-  isHost,
-  cardsRemaining,
-  isCardPlaced,
-  dragDisabled,
-}: ActionZoneProps) {
-  // Card stack is only draggable during placement phases when it's the active player's turn
-  const canDragCard =
-    isActivePlayer &&
-    (game.phase === 'awaitingPlacement' || game.phase === 'awaitingReveal') &&
-    !isCardPlaced &&
-    !dragDisabled
-
-  // Key to force remount when draggability changes - ensures dnd-kit re-registers
-  const stackKey = `${canDragCard}-${game.currentRound?.card?.title ?? 'none'}`
-
-  return (
-    <div className="flex items-center justify-center gap-4 rounded-2xl bg-muted/30 p-4">
-      {/* Card stack */}
-      <MysteryCardStack
-        key={stackKey}
-        cardsRemaining={cardsRemaining}
-        disabled={!canDragCard}
-      />
-
-      {/* Action buttons - to the right of card stack */}
-      <ActionButtons
-        game={game}
-        activePlayer={activePlayer}
-        isActivePlayer={isActivePlayer}
-        isHost={isHost}
-      />
-    </div>
-  )
-}
+import {
+  useActionState,
+  useActivePlayer,
+  useIsActivePlayer,
+  useIsHost,
+  useMyPlayer,
+  useWrapAction,
+} from '@/stores/play-game-store'
 
 interface ActionButtonsProps {
   game: GameData
-  activePlayer: PlayerData
-  isActivePlayer: boolean
-  isHost: boolean
   /** Callback to trigger transition animation before resolving round */
   onBeforeResolve?: () => Promise<void>
 }
 
-export function ActionButtons({
-  game,
-  activePlayer,
-  isActivePlayer,
-  isHost,
-  onBeforeResolve,
-}: ActionButtonsProps) {
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
+export function ActionButtons({ game, onBeforeResolve }: ActionButtonsProps) {
+  const activePlayer = useActivePlayer()
+  const isActivePlayer = useIsActivePlayer()
+  const isHost = useIsHost()
+  const myPlayer = useMyPlayer()
+  const { loading, error } = useActionState()
+  const wrapAction = useWrapAction()
 
   const skipRound = useMutation(api.turns.skipRound)
   const revealCard = useMutation(api.turns.revealCard)
@@ -90,18 +39,14 @@ export function ActionButtons({
   const claimGuessToken = useMutation(api.turns.claimGuessToken)
 
   const onAction = async (action: () => Promise<unknown>) => {
-    setError(null)
-    setLoading(true)
     try {
-      await action()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Action failed')
-    } finally {
-      setLoading(false)
+      await wrapAction(action)
+    } catch {
+      // Error is already handled by wrapAction and stored in state
     }
   }
 
-  const myPlayer = game.players.find((p) => p.isCurrentUser)
+  if (!activePlayer) return null
 
   // awaitingPlacement phase - active player buttons
   if (game.phase === 'awaitingPlacement' && isActivePlayer) {
