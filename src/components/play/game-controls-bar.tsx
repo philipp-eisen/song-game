@@ -14,7 +14,6 @@ import { useCallback, useEffect, useRef } from 'react'
 import { MusicNoteIcon } from '@phosphor-icons/react'
 
 import { api } from '../../../convex/_generated/api'
-import { ActionButtons } from './action-zone'
 import { BetControls } from './bet-controls'
 import { MYSTERY_CARD_ID, MysteryCardStack } from './mystery-card-stack'
 import { PlayerStatusBar } from './player-status-bar'
@@ -41,7 +40,6 @@ import {
   useSetDndActiveId,
   useSetDndItems,
   useSetWasExternalDrag,
-  useTriggerExitAnimation,
 } from '@/stores/play-game-store'
 
 // Custom modifier to snap the drag overlay so the cursor is at the center of the card
@@ -106,7 +104,6 @@ export function GameControlsBar({ game, timelines }: GameControlsBarProps) {
 
   // Get animation state from store
   const isExiting = useIsExiting()
-  const triggerExitAnimation = useTriggerExitAnimation()
 
   const shouldShowDropzone =
     isActivePlayer &&
@@ -322,11 +319,6 @@ export function GameControlsBar({ game, timelines }: GameControlsBarProps) {
   // Cards remaining in the deck
   const cardsRemaining = game.deckRemaining
 
-  // Animation callback for resolving round
-  const handleBeforeResolve = useCallback(async () => {
-    await triggerExitAnimation()
-  }, [triggerExitAnimation])
-
   return (
     <DndContext
       sensors={sensors}
@@ -399,16 +391,6 @@ export function GameControlsBar({ game, timelines }: GameControlsBarProps) {
           isExiting={isExiting}
         />
       ) : null}
-
-      {/* Action buttons - below timeline */}
-      {activePlayer && (
-        <div className="flex justify-center">
-          <ActionButtons
-            game={game}
-            onBeforeResolve={handleBeforeResolve}
-          />
-        </div>
-      )}
 
       {placementError && (
         <p className="text-center text-sm text-destructive">
