@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { useSyncGameToStore } from '@/hooks/use-sync-game-to-store'
 import { useTriggerExitAnimation } from '@/stores/play-game-store'
 
@@ -176,10 +177,12 @@ function ActiveGameView({
   return (
     <div className="flex h-full flex-col">
       {/* Scrollable main content */}
-      <div className="flex-1 space-y-4 overflow-y-auto p-4 pb-0">
-        <GameHeader game={game} />
-        <GameControlsBar game={game} timelines={timelineData} />
-      </div>
+      <ScrollArea className="flex-1">
+        <div className="space-y-4 p-4 pb-0">
+          <GameHeader game={game} />
+          <GameControlsBar game={game} timelines={timelineData} />
+        </div>
+      </ScrollArea>
 
       {/* Sticky footer with controls */}
       <GameStickyFooter game={game} onBeforeResolve={handleBeforeResolve} />

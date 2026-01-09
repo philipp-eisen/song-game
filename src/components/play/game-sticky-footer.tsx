@@ -28,7 +28,7 @@ export function GameStickyFooter({
   const PhaseIcon = getPhaseIcon(phase)
 
   return (
-    <div className="sticky bottom-0 z-10 border-t bg-background/95 backdrop-blur-sm">
+    <div className="sticky bottom-0 z-30 border-t bg-background/95 backdrop-blur-sm">
       <div className="flex items-center justify-between gap-3 px-4 py-2">
         {/* Subtle phase indicator */}
         <div
