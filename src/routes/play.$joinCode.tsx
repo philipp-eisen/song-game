@@ -7,8 +7,8 @@ import {
   FinishedView,
   GameControlsBar,
   GameHeader,
+  GameStickyFooter,
   LobbyView,
-  TurnPrompt,
 } from '@/components/play'
 import {
   getAllTimelinesQuery,
@@ -24,7 +24,9 @@ import {
 } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { useSyncGameToStore } from '@/hooks/use-sync-game-to-store'
+import { useTriggerExitAnimation } from '@/stores/play-game-store'
 
 export const Route = createFileRoute('/play/$joinCode')({
   loader: async ({ context, params }) => {
@@ -163,15 +165,27 @@ function ActiveGameView({
 }) {
   const { data: timelines } = useSuspenseQuery(getAllTimelinesQuery(game._id))
   const timelineData = timelines ?? []
+  const triggerExitAnimation = useTriggerExitAnimation()
 
   // Sync game and timeline data to Zustand store
   useSyncGameToStore(game, timelineData)
 
+  const handleBeforeResolve = async () => {
+    await triggerExitAnimation()
+  }
+
   return (
-    <div className="space-y-4 p-4">
-      <GameHeader game={game} />
-      <TurnPrompt game={game} />
-      <GameControlsBar game={game} timelines={timelineData} />
+    <div className="flex h-full flex-col">
+      {/* Scrollable main content */}
+      <ScrollArea className="flex-1">
+        <div className="space-y-4 p-4 pb-0">
+          <GameHeader game={game} />
+          <GameControlsBar game={game} timelines={timelineData} />
+        </div>
+      </ScrollArea>
+
+      {/* Sticky footer with controls */}
+      <GameStickyFooter game={game} onBeforeResolve={handleBeforeResolve} />
     </div>
   )
 }
