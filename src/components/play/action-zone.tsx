@@ -105,7 +105,7 @@ export function ActionButtons({ game, onBeforeResolve }: ActionButtonsProps) {
           <div className="flex flex-wrap justify-center gap-2">
           <Button
             size="lg"
-            className="gap-2"
+            className="animate-pulse-cta gap-2"
             onClick={() =>
               onAction(() =>
                 revealCard({
@@ -170,7 +170,7 @@ export function ActionButtons({ game, onBeforeResolve }: ActionButtonsProps) {
         <div className="flex flex-wrap justify-center gap-2">
         {(isActivePlayer || isHost) && (
           <Button
-            className="gap-2"
+            className="animate-pulse-cta gap-2"
             onClick={() => onAction(handleContinue)}
             disabled={loading}
           >

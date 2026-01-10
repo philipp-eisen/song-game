@@ -228,6 +228,11 @@ export function LobbyView({ game }: LobbyViewProps) {
                 <Button
                   onClick={handleStart}
                   disabled={loading || game.players.length < 1}
+                  className={
+                    !loading && game.players.length >= 1
+                      ? 'animate-pulse-cta'
+                      : ''
+                  }
                 >
                   {loading ? 'Starting...' : 'Start Game'}
                 </Button>

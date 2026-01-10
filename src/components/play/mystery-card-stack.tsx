@@ -91,7 +91,7 @@ function DraggableCardStack({
 
         {/* Top card (main draggable card) */}
         <motion.div
-          className="relative"
+          className={cn('relative', !isInactive && 'animate-wiggle')}
           variants={{
             idle: { y: 0, scale: 1 },
             hover: { y: -4, scale: 1.02 },
