@@ -5,6 +5,7 @@ import {
   EyeIcon,
   FastForwardIcon,
 } from '@phosphor-icons/react'
+import { motion } from 'motion/react'
 
 import { api } from '../../../convex/_generated/api'
 import type { GameData } from './types'
@@ -17,6 +18,29 @@ import {
   useMyPlayer,
   useWrapAction,
 } from '@/stores/play-game-store'
+
+/** Wrapper that adds a pulsing glow animation to indicate an active CTA */
+function PulsingCtaWrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <motion.div
+      className="rounded-lg"
+      animate={{
+        boxShadow: [
+          '0 0 0 0 hsl(var(--primary) / 0.5)',
+          '0 0 0 8px hsl(var(--primary) / 0)',
+          '0 0 0 0 hsl(var(--primary) / 0.5)',
+        ],
+      }}
+      transition={{
+        duration: 1.5,
+        repeat: Infinity,
+        ease: 'easeInOut',
+      }}
+    >
+      {children}
+    </motion.div>
+  )
+}
 
 interface ActionButtonsProps {
   game: GameData
@@ -103,22 +127,24 @@ export function ActionButtons({ game, onBeforeResolve }: ActionButtonsProps) {
       return (
         <div className="flex flex-col items-center gap-2">
           <div className="flex flex-wrap justify-center gap-2">
-          <Button
-            size="lg"
-            className="animate-pulse-cta gap-2"
-            onClick={() =>
-              onAction(() =>
-                revealCard({
-                  gameId: game._id,
-                  actingPlayerId: activePlayer._id,
-                }),
-              )
-            }
-            disabled={loading}
-          >
-            <EyeIcon weight="duotone" className="size-5" />
-            Reveal!
-          </Button>
+          <PulsingCtaWrapper>
+            <Button
+              size="lg"
+              className="gap-2"
+              onClick={() =>
+                onAction(() =>
+                  revealCard({
+                    gameId: game._id,
+                    actingPlayerId: activePlayer._id,
+                  }),
+                )
+              }
+              disabled={loading}
+            >
+              <EyeIcon weight="duotone" className="size-5" />
+              Reveal!
+            </Button>
+          </PulsingCtaWrapper>
           {isActivePlayer &&
             game.useTokens &&
             activePlayer.tokenBalance >= 3 && (
@@ -169,14 +195,16 @@ export function ActionButtons({ game, onBeforeResolve }: ActionButtonsProps) {
       <div className="flex flex-col items-center gap-2">
         <div className="flex flex-wrap justify-center gap-2">
         {(isActivePlayer || isHost) && (
-          <Button
-            className="animate-pulse-cta gap-2"
-            onClick={() => onAction(handleContinue)}
-            disabled={loading}
-          >
-            <ArrowRightIcon weight="duotone" className="size-4" />
-            Continue
-          </Button>
+          <PulsingCtaWrapper>
+            <Button
+              className="gap-2"
+              onClick={() => onAction(handleContinue)}
+              disabled={loading}
+            >
+              <ArrowRightIcon weight="duotone" className="size-4" />
+              Continue
+            </Button>
+          </PulsingCtaWrapper>
         )}
         {isActivePlayer &&
           game.useTokens &&

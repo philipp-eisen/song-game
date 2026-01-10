@@ -91,13 +91,28 @@ function DraggableCardStack({
 
         {/* Top card (main draggable card) */}
         <motion.div
-          className={cn('relative', !isInactive && 'animate-wiggle')}
+          className="relative"
           variants={{
-            idle: { y: 0, scale: 1 },
-            hover: { y: -4, scale: 1.02 },
-            dragging: { y: 0, scale: 1 },
+            idle: {
+              y: 0,
+              scale: 1,
+              rotate: [0, -3, 2.5, -2, 1.5, -1, 0],
+            },
+            hover: { y: -4, scale: 1.02, rotate: 0 },
+            dragging: { y: 0, scale: 1, rotate: 0 },
+            disabled: { y: 0, scale: 1, rotate: 0 },
           }}
-          transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+          animate={isDragging ? 'dragging' : disabled ? 'disabled' : 'idle'}
+          transition={{
+            type: 'spring',
+            stiffness: 300,
+            damping: 20,
+            rotate: {
+              duration: 1.2,
+              repeat: Infinity,
+              ease: 'easeInOut',
+            },
+          }}
         >
           <TopCard disabled={isInactive} />
         </motion.div>
