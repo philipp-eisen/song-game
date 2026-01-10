@@ -1,6 +1,7 @@
 import { CheckIcon, CopyIcon, LinkIcon, UsersIcon } from '@phosphor-icons/react'
 import { useNavigate } from '@tanstack/react-router'
 import { useMutation } from 'convex/react'
+import { motion } from 'motion/react'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { api } from '../../../convex/_generated/api'
@@ -225,12 +226,32 @@ export function LobbyView({ game }: LobbyViewProps) {
           <div className="flex gap-2">
             {isHost ? (
               <>
-                <Button
-                  onClick={handleStart}
-                  disabled={loading || game.players.length < 1}
-                >
-                  {loading ? 'Starting...' : 'Start Game'}
-                </Button>
+                {!loading && game.players.length >= 1 ? (
+                  <motion.div
+                    className="rounded-lg"
+                    animate={{
+                      boxShadow: [
+                        '0 0 0 0 hsl(var(--primary) / 0.5)',
+                        '0 0 0 8px hsl(var(--primary) / 0)',
+                        '0 0 0 0 hsl(var(--primary) / 0.5)',
+                      ],
+                    }}
+                    transition={{
+                      duration: 1.5,
+                      repeat: Infinity,
+                      ease: 'easeInOut',
+                    }}
+                  >
+                    <Button onClick={handleStart}>Start Game</Button>
+                  </motion.div>
+                ) : (
+                  <Button
+                    onClick={handleStart}
+                    disabled={loading || game.players.length < 1}
+                  >
+                    {loading ? 'Starting...' : 'Start Game'}
+                  </Button>
+                )}
                 <Button variant="destructive" onClick={handleDelete}>
                   Delete Game
                 </Button>
