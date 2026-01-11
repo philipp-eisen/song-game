@@ -108,8 +108,9 @@ function DraggableCardStack({
             stiffness: 300,
             damping: 20,
             rotate: {
-              duration: 1.2,
+              duration: 0.8,
               repeat: Infinity,
+              repeatDelay: 3,
               ease: 'easeInOut',
             },
           }}
